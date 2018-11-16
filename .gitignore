@@ -105,3 +105,7 @@ venv.bak/
 
 ### Ignored dataset files
 resources/
+.question
+.answer
+.context
+.span
