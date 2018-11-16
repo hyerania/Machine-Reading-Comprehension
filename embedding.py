@@ -63,4 +63,4 @@ def get_glove(glove_path, glove_dim):
     assert idx == final_vocab_size
     print("Finished processing GloVe vectors")
     
-    return emb_matrix, word2id, id2word
+    return id2word, word2id, emb_matrix

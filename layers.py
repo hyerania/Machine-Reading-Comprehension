@@ -2,6 +2,7 @@ import tensorflow as tf
 from tensorflow.python.ops.rnn_cell import DropoutWrapper
 from tensorflow.python.ops import variable_scope as vs
 from tensorflow.python.ops import rnn_cell
+from helperFunctions import masked_softmax, matrix_multiplication
 
 
 class RNNEncoder():
@@ -37,7 +38,6 @@ class RNNEncoder():
             rnn_cell_bw = DropoutWrapper(rnn_cell_bw, input_keep_prob=self.dropout_param)
             
             input_lens = tf.reduce_sum(masks, reduction_indices=1) # input length for each batch
-            
             (fw_out, bw_out), _ = tf.nn.bidirectional_dynamic_rnn(rnn_cell_fw, rnn_cell_bw, inputs, input_lens, dtype=tf.float32)
 
             # Concatenate the forward and backward hidden states
@@ -112,7 +112,7 @@ class BidafAttention():
             # Apply dropout
             output_Bidaf = tf.nn.dropout(output_Bidaf, self.dropout_param)
 
-            
+            return output_Bidaf
             
             
             
@@ -127,11 +127,11 @@ class SimpleSoftmaxLayer(object):
     def __init__(self):
         pass
 
-    def build_graph(self, inputs, masks):
+    def add_layer(self, inputs, masks, scopename):
         """
         Reduces the dimensionality to 1 using a single layer, then softmax
         Inputs:
-          inputs: shape: (batch_size, seq_len, hidden_size)
+          inputs: shape: (batch_size, seq_len, hidden_size_fully_connected)
           masks: shape: (batch_size, seq_len)
             Has 1s where there is real input, 0s where there's padding.
         Outputs:
@@ -142,7 +142,7 @@ class SimpleSoftmaxLayer(object):
             The result of taking softmax over logits.
             This should have 0 in the padded locations, and the rest should sum to 1.
         """
-        with vs.variable_scope("SimpleSoftmaxLayer"):
+        with vs.variable_scope(scopename):
 
             # Linear downprojection layer
             logits = tf.contrib.layers.fully_connected(inputs, num_outputs=1, activation_fn=None) # shape (batch_size, seq_len, 1)
@@ -193,44 +193,5 @@ class Highway():
         
             output_highway = tf.add(tf.multiply(H, T), tf.multiply(inputs, C), "output_highway")
             return output_highway
-        
-        
-def masked_softmax(logits, mask, dim):
-        """
-        Takes masked softmax over the given input
-        Inputs:
-          logits: Numpy array
-          mask: Numpy array of same shape as logits
-            Has 1s where there's real data in logits, 0 where there's padding
-          dim: int. dimension over which to take softmax
-        Returns:
-          masked_logits: Numpy array same shape as logits
-            This is the same as logits, but with 1e30 subtracted
-            (i.e. very large negative number) in the padding locations.
-          prob_dist: Numpy array same shape as logits.
-            The result of taking softmax over masked_logits in given dimension.
-            Should be 0 in padding locations.
-            Should sum to 1 over given dimension.
-        """
-        exp_mask = (1 - tf.cast(mask, 'float')) * (-1e30) # -large where there's padding, 0 elsewhere
-        masked_logits = tf.add(logits, exp_mask) # where there's padding, set logits to -large
-        prob_dist = tf.nn.softmax(masked_logits, dim)
-        return prob_dist
-    
-def matrix_multiplication(mat, weight):
-        """
-        Multiplies 3D matrix, mat to 2D matrix, weight
-        Input:
-            mat: 3D matrix -> (i, j, k)
-            weight: 2D matrix -> (k, l)
-        Output:
-            Output: 3D matrix -> (i,j,l)
-        """
-        mat_shape = mat.get_shape().as_list()  # shape - ijk
-        weight_shape = weight.get_shape().as_list()  # shape -kl
-        assert (mat_shape[-1] == weight_shape[0])
-        mat_reshape = tf.reshape(mat, [-1, mat_shape[-1]])  # [batch_size * n, m]
-        mul = tf.matmul(mat_reshape, weight)  # [batch_size * n, p]
-        return tf.reshape(mul, [-1, mat_shape[1], weight_shape[-1]])  # reshape to batch_size, seq_len, p
         
         
