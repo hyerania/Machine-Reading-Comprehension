@@ -77,3 +77,5 @@ if __name__ == "__main__":
 	# Test Mode
 	elif args.mode == 'test':
 		print("Testing Network")
+		with tf.Session(config = config) as sess:
+			modelSetup(sess, mrcModel, train_dir)
