@@ -1,9 +1,6 @@
 """This file contains a function to read the GloVe vectors from file,
 and return them as an embedding matrix"""
 
-from __future__ import absolute_import
-from __future__ import division
-
 from tqdm import tqdm
 import numpy as np
 
