@@ -1,6 +1,7 @@
 # coding: utf-8
 import json
 import os
+import numpy as np
 import time
 import tensorflow as tf
 from tensorflow.python.ops import embedding_ops
@@ -172,7 +173,7 @@ class mrcModel(object):
             #epoch_tic = time.time()
 
             # Loop over batches
-            for batch in get_batch_generator(self.word2id, train_context_path, train_qn_path, train_ans_path, self.FLAGS.batch_size, context_len=self.FLAGS.context_len, question_len=self.FLAGS.question_len):
+            for batch in get_batch_generator(self.word2id, train_context_path, train_qn_path, train_ans_path, self.FLAGS.batch_size, context_len=self.FLAGS.context_len, question_len=self.FLAGS.question_len, discard_examples = True):
 
                 # Run training iteration
                 #iter_tic = time.time()
@@ -234,7 +235,7 @@ class mrcModel(object):
     
     ### HELPER FUNCTIONS
     def calc_f1(self, session, context_path, question_path, answer_path, data_name, num_samples):
-		'''
+        '''
         Calculate the F1 Score and returen the average for all or only a certain number of samples
         Inputs:
             session: current Tensorflow session
@@ -246,7 +247,7 @@ class mrcModel(object):
         F1 average score
         '''
         f1_total = 0
-		calcTimeStart = time.time()
+        calcTimeStart = time.time()
         for batch in get_batch_generator(self.word2id, context_path, question_path, answer_path, self.batch_size, context_len=self.context_len, question_len = self.question_len, discard_examples = False):
             start_index_pred, end_index_pred = self.get_index(session, batch, "f1Score")
             start_index_pred = start_index_pred.tolist()
@@ -266,19 +267,19 @@ class mrcModel(object):
                 current_f1 = f1_score(answer_pred, answer_truth)
                 f1_total += current_f1
 
-            # Tests if using all the dataset or only a sample
+                # Tests if using all the dataset or only a sample
+                if(example_num >= num_samples and num_samples != 0):
+                    break
             if(example_num >= num_samples and num_samples != 0):
                 break
-        if(example_num >= num_samples and num_samples != 0):
-            break
 
         f1_total = f1_total/example_num
         calcTimeEnd = time.time()
         logging.info("F1 %s: %i examples took %.5f seconds [Score: %.5f]" % (data_name, example_num, calcTimeEnd-calcTimeStart, f1_total))
-		return f1_total
-
-	def calc_em(self, session, context_path, question_path, answer_path, data_name, num_samples):
-		'''
+        return f1_total
+    
+    def calc_em(self, session, context_path, question_path, answer_path, data_name, num_samples):
+        '''
         Calculate the EM Score and returen the average for all or only a certain number of samples
         Inputs:
             session: current Tensorflow session
@@ -292,7 +293,7 @@ class mrcModel(object):
         em_total = 0
         calcTimeStart = time.time()
         for batch in get_batch_generator(self.word2id, context_path, question_path, answer_path, self.batch_size, context_len = self.context_len, question_len = self.question_len, discard_examples = False):
-            start_index_pred, end_index_pred, _ = self.get_index(session, batch, "emScore")
+            start_index_pred, end_index_pred = self.get_index(session, batch, "emScore")
             start_index_pred = start_index_pred.tolist()
             end_index_pred = end_index_pred.tolist()
 
@@ -310,11 +311,11 @@ class mrcModel(object):
                 current_em = exact_match_score(answer_pred, answer_truth)
                 em_total += current_em
 
-            # Tests if using all the dataset or only a sample
+                # Tests if using all the dataset or only a sample
+                if(example_num >= num_samples and num_samples != 0):
+                    break
             if(example_num >= num_samples and num_samples != 0):
                 break
-        if(example_num >= num_samples and num_samples != 0):
-            break
 
         em_total = em_total/example_num
         calcTimeEnd = time.time()
