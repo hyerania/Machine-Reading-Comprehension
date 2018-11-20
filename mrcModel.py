@@ -233,7 +233,7 @@ class mrcModel(object):
         sys.stdout.flush()
     
     ### HELPER FUNCTIONS
-	def calc_f1(self, session, context_path, question_path, answer_path, data_name, num_samples):
+    def calc_f1(self, session, context_path, question_path, answer_path, data_name, num_samples):
 		'''
         Calculate the F1 Score and returen the average for all or only a certain number of samples
         Inputs:
