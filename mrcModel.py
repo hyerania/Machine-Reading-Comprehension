@@ -23,6 +23,7 @@ class mrcModel(object):
         self.context_len = 300 #Max number of words in context
         self.question_len = 30 #Max number of words in question
         self.batch_size = 60 #Batch size
+        self.num_epochs = 1
         
         #Learning parameters
         self.max_gradient_norm = 5.0 #Param for gradient Clipping
@@ -147,7 +148,7 @@ class mrcModel(object):
         # which are longer than our context_len or question_len.
         # We need to do this because if, for example, the true answer is cut
         # off the context, then the loss function is undefined.
-        for batch in get_batch_generator(self.word2id, dev_context_path, dev_qn_path, dev_ans_path, self.batch_size, context_len=self.context_len, question_len=self.question_len, discard_long=True):
+        for batch in get_batch_generator(self.word2id, dev_context_path, dev_qn_path, dev_ans_path, self.batch_size, context_len=self.context_len, question_len=self.question_len, discard_examples=True):
 
             # Get loss for this batch
             loss = self.run_iter(session, batch, mode = 'dev_loss')
@@ -193,12 +194,12 @@ class mrcModel(object):
             [_, loss, global_step, param_norm, gradient_norm] = session.run(output_feed, input_feed)
             return loss, global_step, param_norm, gradient_norm
         elif mode == "dev_loss":
-            input_feed[self.ans_span] = batch.ans_span
+            input_feed[self.answer_span] = batch.ans_span
             output_feed = [self.loss]
             [loss] = session.run(output_feed, input_feed)
             return loss
         elif mode == "emScore" or mode == "f1Score":
-            output_feed = [self.probdist_start, self.probdist_end]
+            output_feed = [self.start_probs, self.end_probs]
             [probdist_start, probdist_end] = session.run(output_feed, input_feed)
             return probdist_start, probdist_end
             
@@ -240,16 +241,16 @@ class mrcModel(object):
 
         #logging.info("Beginning training loop...")
         #WHYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY????
-        while epoch < self.FLAGS.num_epochs:
+        while epoch < self.num_epochs:
             epoch += 1
             #epoch_tic = time.time()
 
             # Loop over batches
-            for batch in get_batch_generator(self.word2id, train_context_path, train_qn_path, train_ans_path, self.FLAGS.batch_size, context_len=self.FLAGS.context_len, question_len=self.FLAGS.question_len, discard_examples = True):
+            for batch in get_batch_generator(self.word2id, train_context_path, train_qn_path, train_ans_path, self.batch_size, context_len=self.context_len, question_len=self.question_len, discard_examples = True):
 
                 # Run training iteration
                 #iter_tic = time.time()
-                loss, global_step, param_norm, grad_norm = self.run_train_iter(session, batch)
+                loss, global_step, param_norm, grad_norm = self.run_iter(session, batch, mode = 'train')
                 #iter_toc = time.time()
                 #iter_time = iter_toc - iter_tic
 
@@ -261,8 +262,7 @@ class mrcModel(object):
 
                 # Sometimes print info to screen
                 if global_step % self.print_every == 0:
-                    logging.info(
-                        'epoch %d, iter %d, loss %.5f, smoothed loss %.5f, grad norm %.5f, param norm %.5f' %
+                    logging.info('epoch %d, iter %d, loss %.5f, smoothed loss %.5f, grad norm %.5f, param norm %.5f' %
                         (epoch, global_step, loss, exp_loss, grad_norm, param_norm))
 
                 # Sometimes save model
@@ -277,19 +277,17 @@ class mrcModel(object):
                     dev_loss = self.get_dev_loss(session, dev_context_path, dev_qn_path, dev_ans_path)
                     logging.info("Epoch %d, Iter %d, dev loss: %f" % (epoch, global_step, dev_loss))
 
-
-
                     # Get F1/EM on train set and log to tensorboard
-                    train_f1, train_em = self.check_f1_em(session, train_context_path, train_qn_path, train_ans_path, "train", num_samples=1000)
+                    train_f1 = self.calc_f1(session, train_context_path, train_qn_path, train_ans_path, "train", num_samples=1000)
+                    train_em = self.calc_em(session, train_context_path, train_qn_path, train_ans_path, "train", num_samples=1000)
                     logging.info("Epoch %d, Iter %d, Train F1 score: %f, Train EM score: %f" % (epoch, global_step, train_f1, train_em))
-                    
-
-
+ 
                     # Get F1/EM on dev set and log to tensorboard
-                    dev_f1, dev_em = self.check_f1_em(session, dev_context_path, dev_qn_path, dev_ans_path, "dev", num_samples=0)
+                    dev_f1 = self.calc_f1(session, dev_context_path, dev_qn_path, dev_ans_path, "dev", num_samples=0)
+                    dev_em = self.calc_em(session, dev_context_path, dev_qn_path, dev_ans_path, "dev", num_samples=0)
                     logging.info("Epoch %d, Iter %d, Dev F1 score: %f, Dev EM score: %f" % (epoch, global_step, dev_f1, dev_em))
                     logging.info("End of epoch %i" % (epoch))
-                    
+
     
     ### HELPER FUNCTIONS
     def calc_f1(self, session, context_path, question_path, answer_path, data_name, num_samples):
@@ -377,7 +375,7 @@ class mrcModel(object):
 
         em_total = em_total/example_num
         calcTimeEnd = time.time()
-        logging.info("F1 %s: %i examples took %.5f seconds [Score: %.5f]" % (data_name, example_num, calcTimeEnd-calcTimeStart, f1_total))
+        logging.info("F1 %s: %i examples took %.5f seconds [Score: %.5f]" % (data_name, example_num, calcTimeEnd-calcTimeStart, em_total))
         return em_total
 
     def get_index(self, session, batch, mode):
