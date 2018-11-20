@@ -1,9 +1,6 @@
-from __future__ import absolute_import
-from __future__ import division
-
 import numpy as np
 import random
-from vocab import PAD_ID, UNK_ID
+from embedding import PAD_ID, UNK_ID
 
 
 class Batch(object):
