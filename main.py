@@ -72,7 +72,7 @@ if __name__ == "__main__":
 		with tf.Session(config = config) as sess:
 			modelSetup(sess, mrcModel, train_dir)
 			print ("Model finished setup")
-			# mrcModel.train()
+			mrcModel.train(sess, train_context, train_questions, train_ans_span, dev_questions, dev_context, dev_ans_span)
 
 	# Test Mode
 	elif args.mode == 'test':
