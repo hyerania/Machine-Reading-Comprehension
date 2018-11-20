@@ -1,6 +1,7 @@
 # coding: utf-8
 import json
 import os
+import time
 import tensorflow as tf
 from tensorflow.python.ops import embedding_ops
 from tensorflow.python.ops import variable_scope as vs
@@ -8,6 +9,7 @@ from layers import Highway, RNNEncoder, BidafAttention, SimpleSoftmaxLayer
 from helperFunctions import masked_softmax
 import logging
 from batcher import get_batch_generator
+from official_evaluation import f1_score, exact_match_score
 
 ### Model
 class mrcModel(object):
@@ -18,6 +20,7 @@ class mrcModel(object):
         self.hidden_full_size = 200
         self.context_len = 300
         self.question_len = 30
+        self.batch_size = 60
         # embed_size = 100
 
         self.id2word = id2word
@@ -82,13 +85,6 @@ class mrcModel(object):
         # with vs.variable_scope("End")
         end_layer = SimpleSoftmaxLayer()
         self.end_val, self.end_probs = end_layer.add_layer(final_combination_cq, self.context_mask, scopename="EndSoftmax")
-
-        
-#         masked_softmax => Function not a clss (Pass masked softmax here)
-        # HIghway layer
-#             Highway()
-#             Highway.add_layer()
-#         from Layers import *
         
         
     def add_loss(self):
@@ -170,10 +166,8 @@ class mrcModel(object):
 
         """
         epoch = 0
-
-        #logging.info("Beginning training loop...")
-        #WHYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY????
-        while self.FLAGS.num_epochs == 0 or epoch < self.FLAGS.num_epochs:
+        # while self.FLAGS.num_epochs == 0 or epoch < self.FLAGS.num_epochs:
+        while epoch < self.FLAGS.num_epochs:
             epoch += 1
             #epoch_tic = time.time()
 
@@ -237,4 +231,107 @@ class mrcModel(object):
             logging.info("End of epoch %i. Time for epoch: %f" % (epoch, epoch_toc-epoch_tic))
 
         sys.stdout.flush()
-        
+    
+    ### HELPER FUNCTIONS
+	def calc_f1(self, session, context_path, question_path, answer_path, data_name, num_samples):
+		'''
+        Calculate the F1 Score and returen the average for all or only a certain number of samples
+        Inputs:
+            session: current Tensorflow session
+            context_path, qustion_path, answer_path: Path of actual data files
+            data_name: For log file, define if using train or dev set
+            num_samples: If 0, use the entire dataset, else use only the specificed number as a subset of the data
+
+        Returns:
+        F1 average score
+        '''
+        f1_total = 0
+		calcTimeStart = time.time()
+        for batch in get_batch_generator(self.word2id, context_path, question_path, answer_path, self.batch_size, context_len=self.context_len, question_len = self.question_len, discard_examples = False):
+            start_index_pred, end_index_pred = self.get_index(session, batch, "f1Score")
+            start_index_pred = start_index_pred.tolist()
+            end_index_pred = end_index_pred.tolist()
+
+            for id, (start_answer_pred, end_answer_pred, answer_tokens) in enumerate(zip(start_index_pred, end_index_pred, batch.ans_tokens)):
+                example_num += 1
+
+                #Find the predicted answer
+                answer_tokens_pred = batch.context_tokens[id][start_answer_pred: end_answer_pred + 1]
+                answer_pred = " ".join(answer_tokens_pred)
+
+                #Find the ground truth answer
+                answer_truth = " ".join(answer_tokens)
+
+                #Calculate F1 Score using official evaluation methods
+                current_f1 = f1_score(answer_pred, answer_truth)
+                f1_total += current_f1
+
+            # Tests if using all the dataset or only a sample
+            if(example_num >= num_samples and num_samples != 0):
+                break
+        if(example_num >= num_samples and num_samples != 0):
+            break
+
+        f1_total = f1_total/example_num
+        calcTimeEnd = time.time()
+        logging.info("F1 %s: %i examples took %.5f seconds [Score: %.5f]" % (data_name, example_num, calcTimeEnd-calcTimeStart, f1_total))
+		return f1_total
+
+	def calc_em(self, session, context_path, question_path, answer_path, data_name, num_samples):
+		'''
+        Calculate the EM Score and returen the average for all or only a certain number of samples
+        Inputs:
+            session: current Tensorflow session
+            context_path, qustion_path, answer_path: Path of actual data files
+            data_name: For log file, define if using train or dev set
+            num_samples: If 0, use the entire dataset, else use only the specificed number as a subset of the data
+
+        Returns:
+        EM average score
+        '''
+        em_total = 0
+        calcTimeStart = time.time()
+        for batch in get_batch_generator(self.word2id, context_path, question_path, answer_path, self.batch_size, context_len = self.context_len, question_len = self.question_len, discard_examples = False):
+            start_index_pred, end_index_pred, _ = self.get_index(session, batch, "emScore")
+            start_index_pred = start_index_pred.tolist()
+            end_index_pred = end_index_pred.tolist()
+
+            for id, (start_answer_pred, end_answer_pred, answer_tokens) in enumerate(zip(start_index_pred, end_index_pred, batch.ans_tokens)):
+                example_num += 1
+
+                #Find the predicted answer
+                answer_tokens_pred = batch.context_tokens[id][start_answer_pred: end_answer_pred + 1]
+                answer_pred = " ".join(answer_tokens_pred)
+
+                #Find the ground truth answer
+                answer_truth = " ".join(answer_tokens)
+
+                #Calculate Exact Match Score using official evaluation methods
+                current_em = exact_match_score(answer_pred, answer_truth)
+                em_total += current_em
+
+            # Tests if using all the dataset or only a sample
+            if(example_num >= num_samples and num_samples != 0):
+                break
+        if(example_num >= num_samples and num_samples != 0):
+            break
+
+        em_total = em_total/example_num
+        calcTimeEnd = time.time()
+        logging.info("F1 %s: %i examples took %.5f seconds [Score: %.5f]" % (data_name, example_num, calcTimeEnd-calcTimeStart, f1_total))
+        return em_total
+
+    def get_index(self, session, batch, mode):
+        '''
+        Uses forward pass only
+        Inputs:
+            session: current Tensorflow session
+            batch: Batch object
+            mode: Describing f1Score or emScore for the run_iter function
+        Returns the most likely start and end indexes for the answer for each example
+        '''
+        start_probs, end_probs = self.run_iter(session, batch, mode)
+        start_index = np.argmax(start_probs, axis=1)
+        end_index = np.argmax(end_probs, axis=1)
+
+        return start_index, end_index
