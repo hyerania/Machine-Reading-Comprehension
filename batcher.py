@@ -73,7 +73,7 @@ def padded(token_batch, batch_pad):
     return map(lambda token_list: token_list + [PAD_ID] * (batch_pad - len(token_list)), token_batch)
 
 
-def add_batches(batches, word2id, context_file, qn_file, ans_file, batch_size, context_len, question_len, discard_long ):
+def add_batches(batches, word2id, context_file, qn_file, ans_file, batch_size, context_len, question_len, discard_examples ):
     """
     Adds batches into the "batches" list.
     Each time it starts from the where it left the files last time and fills in 160 batches into the batches list
@@ -111,13 +111,13 @@ def add_batches(batches, word2id, context_file, qn_file, ans_file, batch_size, c
 
         # discard too-long questions
         if len(ques_ids) > question_len:
-            if discard_long:
+            if discard_examples:
                 continue
             else: # truncate
                 ques_ids = ques_ids[:question_len]
         
         if len(context_ids) > context_len:
-            if discard_long:
+            if discard_examples:
                 continue
             else: # truncate
                 context_ids = context_ids[:context_len]
@@ -166,7 +166,7 @@ def add_batches(batches, word2id, context_file, qn_file, ans_file, batch_size, c
     print("Added ",len(batches)," batches")
     return
 
-def get_batch_generator(word2id, context_path, qn_path, ans_path, batch_size, context_len, question_len, discard_long):
+def get_batch_generator(word2id, context_path, qn_path, ans_path, batch_size, context_len, question_len, discard_examples):
     """This function is a generator. Here is how it runs:
         1. When the function is called first time, none of the code is run, only a generator is returned
         2. Now when this object is used in for loop like, 'for i in generator', the whole function runs till reaches yeild
@@ -182,7 +182,7 @@ def get_batch_generator(word2id, context_path, qn_path, ans_path, batch_size, co
     while True:
         #When the generator is used for the first time in for loop or when batches gets empty (after 160*batchsize)
         if len(batches) == 0: 
-            add_batches(batches, word2id, context_file, qn_file, ans_file, batch_size, context_len, question_len, discard_long)
+            add_batches(batches, word2id, context_file, qn_file, ans_file, batch_size, context_len, question_len, discard_examples)
         #When the list is empty and we have reached the end of training files, prevent it from going to yield
         if len(batches) == 0:
             break
