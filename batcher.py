@@ -86,7 +86,7 @@ def add_batches(batches, word2id, context_file, qn_file, ans_file, batch_size, c
       batch_size: int. how big to make the batches
       context_len, question_len: max length of context and question respectively
     """
-    print("Adding batches start.....................")
+    print("Adding batches start...")
     examples = [] # list of (context_ids, context_tokens, qn_ids, qn_tokens, ans_span, ans_tokens)
     context, ques, ans = context_file.readline(), qn_file.readline(), ans_file.readline() # read the next line from each
     #Each line has a training sample (Context[i], Question[i], Answerspan[i])
@@ -140,26 +140,7 @@ def add_batches(batches, word2id, context_file, qn_file, ans_file, batch_size, c
 
         # Note: each of these is a list length batch_size of lists of ints (except on last iter when it might be less than batch_size)
         context_ids_batch, context_tokens_batch, ques_ids_batch, ques_tokens_batch, ans_span_batch, ans_tokens_batch = zip(*examples[batch_start:batch_start+batch_size])
-        
-        # Pad context_ids and ques_ids
-        ques_ids = padded(ques_ids, question_len) # pad questions to length question_len
-        context_ids = padded(context_ids, context_len) # pad contexts to length context_len
-
-        # Make ques_ids into a np array and create ques_mask
-        ques_ids = np.array(ques_ids) # [question_len, batch_size/<batchsize]
-        ques_mask = (ques_ids != PAD_ID).astype(np.int32) # [question_len, batch_size/<batchsize]
-
-        # Make context_ids into a np array and create context_mask
-        context_ids = np.array(context_ids) # [context_len, batch_size/<batchsize]
-        context_mask = (context_ids != PAD_ID).astype(np.int32) # [context_len, batch_size/<batchsize]
-
-        # Make ans_span into a np array
-        ans_span = np.array(ans_span) # [batch_size/<batchsize, 2]
-
-        # Make into a Batch object
-        batch = Batch(context_ids, context_mask, context_tokens, ques_ids, ques_mask, ques_tokens, ans_span, ans_tokens)
-        
-        batches.append(batch)
+        batches.append((context_ids_batch, context_tokens_batch, ques_ids_batch, ques_tokens_batch, ans_span_batch, ans_tokens_batch))
 
     # shuffle the batches
     random.shuffle(batches)
@@ -175,7 +156,7 @@ def get_batch_generator(word2id, context_path, qn_path, ans_path, batch_size, co
     """
     
     #Open the files for context, question and answer
-    context_file, qn_file, ans_file = open(context_path), open(qn_path), open(ans_path)
+    context_file, qn_file, ans_file = open(context_path, encoding='utf-8'), open(qn_path, encoding='utf-8'), open(ans_path, encoding='utf-8')
     
     batches = []
 
@@ -186,8 +167,27 @@ def get_batch_generator(word2id, context_path, qn_path, ans_path, batch_size, co
         #When the list is empty and we have reached the end of training files, prevent it from going to yield
         if len(batches) == 0:
             break
+
+        (context_ids_batch, context_tokens_batch, ques_ids_batch, ques_tokens_batch, ans_span, ans_tokens) = batches.pop(0)
+        # Pad context_ids and ques_ids
+        ques_ids = padded(ques_ids_batch, question_len) # pad questions to length question_len
+        context_ids = padded(context_ids_batch, context_len) # pad contexts to length context_len
+
+        # Make ques_ids into a np array and create ques_mask
+        ques_ids = np.array(ques_ids) # [question_len, batch_size/<batchsize]
+        ques_mask = (ques_ids != PAD_ID).astype(np.int32) # [question_len, batch_size/<batchsize]
+
+        # Make context_ids into a np array and create context_mask
+        context_ids = np.array(context_ids) # [context_len, batch_size/<batchsize]
+        context_mask = (context_ids != PAD_ID).astype(np.int32) # [context_len, batch_size/<batchsize]
+
+        # Make ans_span into a np array
+        ans_span = np.array(ans_span) # [batch_size/<batchsize, 2]
+
+        # Make into a Batch object
+        batch = Batch(context_ids, context_mask, context_tokens_batch, ques_ids, ques_mask, ques_tokens_batch, ans_span, ans_tokens)
         
-        yield batches.pop(0)
+        yield batch
 
     return
 

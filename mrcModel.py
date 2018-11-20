@@ -75,6 +75,7 @@ class mrcModel(object):
         self.prob_dropout = tf.placeholder_with_default(1.0, shape=())
 
     def add_embed_layer(self, embed_matrix):
+        print("In Add Embed Layer")
         with tf.variable_scope("embedding"):
             embedding_matrix = tf.constant(embed_matrix, dtype=tf.float32, name="embed_matrix") #[400002, 100]
             self.context_embed = embedding_ops.embedding_lookup(embedding_matrix, self.context_ids) #[batch_size, context_len, 100]
@@ -82,20 +83,22 @@ class mrcModel(object):
     
     def create_layers(self):
         ### Add highway layer
-        embed_size = self.context_embed.get_shape().as_list()[-1] #[100]
-        high_way = Highway(embed_size, -1.0)
-        for i in range(2):
-            self.context_embed = high_way.add_layer(self.context_embed, scopename = "HighwayLayer") #[batch_size, context_len, 100]
-            self.question_embed = high_way.add_layer(self.question_embed, scopename = "HighwayLayer") #[batch_size, ques_len, 100]
+        # embed_size = self.context_embed.get_shape().as_list()[-1] #[100]
+        # high_way = Highway(embed_size, -1.0)
+        # for i in range(2):
+        #     self.context_embed = high_way.add_layer(self.context_embed, scopename = "HighwayLayer") #[batch_size, context_len, 100]
+        #     self.question_embed = high_way.add_layer(self.question_embed, scopename = "HighwayLayer") #[batch_size, ques_len, 100]
             #Note that both context and embed share the same highway so we send the same scope names
-            
+        
         ### Add RNN Encoder Layer
+        print("In RNN Encoder layer")
         rnn_encoder = RNNEncoder(self.hidden_encoder_size, self.prob_dropout) 
         context_hidden_layer = rnn_encoder.add_layer(self.context_embed, self.context_mask, scopename="EncoderLayer") #[batch_size, context_len, 150]
         question_hidden_layer = rnn_encoder.add_layer(self.question_embed, self.question_mask, scopename="EncoderLayer") #[batch_size, context_len, 150]
         
         
         ### Add Attention Layer using BiDAF
+        print("In BiDAF Layer")
         attention_layer = BidafAttention(2*self.hidden_encoder_size, self.prob_dropout) 
         combination_cq = attention_layer.add_layer(context_hidden_layer, self.context_mask, question_hidden_layer, self.question_mask, scopename = "BiDAFLayer") #[batch_size, context_len, 1200]
         hidden_BiDAF = RNNEncoder(self.hidden_bidaf_size, self.prob_dropout)
@@ -104,6 +107,7 @@ class mrcModel(object):
         
 
         ### Add Output Layer: Predicting start and end of answer
+        print("In output layer")
         final_combination_cq = tf.contrib.layers.fully_connected(output_hidden_BiDAF, num_outputs=self.hidden_full_size) #[batch, context_len, 200]
         
         # Compute start distribution
@@ -119,6 +123,7 @@ class mrcModel(object):
         
     def add_loss(self):
 #         with vs.variable_scope("loss"):
+        print("In loss function")
         with tf.variable_scope("loss"):
             # Loss for start prediction
             loss_start = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.start_val, labels=self.answer_span[:, 0])
@@ -188,6 +193,8 @@ class mrcModel(object):
         if mode == "train":
             input_feed[self.answer_span] = batch.ans_span
             input_feed[self.prob_dropout] = self.dropout # apply dropout
+            # print(input_feed)
+            print(input_feed[self.context_ids])
             # output_feed contains the things we want to fetch.
             output_feed = [self.updates, self.loss, self.global_step, self.param_norm, self.gradient_norm]
             # Run the model
@@ -303,6 +310,7 @@ class mrcModel(object):
         F1 average score
         '''
         f1_total = 0
+        example_num = 0
         calcTimeStart = time.time()
         for batch in get_batch_generator(self.word2id, context_path, question_path, answer_path, self.batch_size, context_len=self.context_len, question_len = self.question_len, discard_examples = False):
             start_index_pred, end_index_pred = self.get_index(session, batch, "f1Score")
@@ -347,6 +355,7 @@ class mrcModel(object):
         EM average score
         '''
         em_total = 0
+        example_num = 0
         calcTimeStart = time.time()
         for batch in get_batch_generator(self.word2id, context_path, question_path, answer_path, self.batch_size, context_len = self.context_len, question_len = self.question_len, discard_examples = False):
             start_index_pred, end_index_pred = self.get_index(session, batch, "emScore")
