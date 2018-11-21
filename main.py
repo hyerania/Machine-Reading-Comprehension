@@ -37,12 +37,12 @@ if __name__ == "__main__":
 	batch_size = 60
 
 	# Read data
-	# dev_data = load_json(os.path.join(data_dir,"dev-v1.1.json"))
-	# train_data = load_json(os.path.join(data_dir,"train-v1.1.json"))
-	# print("Loading devset:")
-	# preprocess(dev_data, "dev", data_dir)
-	# print("Loading trainset:")
-	# preprocess(train_data, "train", data_dir)
+	dev_data = load_json(os.path.join(data_dir,"dev-v1.1.json"))
+	train_data = load_json(os.path.join(data_dir,"train-v1.1.json"))
+	print("Loading devset:")
+	preprocess(dev_data, "dev", data_dir)
+	print("Loading trainset:")
+	preprocess(train_data, "train", data_dir)
 
 	## Getting train and dev data
 	train_context = os.path.join(data_dir, "train.context")
