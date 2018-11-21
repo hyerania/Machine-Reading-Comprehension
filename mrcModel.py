@@ -23,7 +23,7 @@ class mrcModel(object):
         self.context_len = 300 #Max number of words in context
         self.question_len = 30 #Max number of words in question
         self.batch_size = 60 #Batch size
-        self.num_epochs = 1
+        self.num_epochs = 15
         
         #Learning parameters
         self.max_gradient_norm = 5.0 #Param for gradient Clipping
@@ -34,7 +34,7 @@ class mrcModel(object):
         self.train_dir = './train' #Directiory to save the model
         self.print_every = 5 #To print log
         self.save_every = 500 #To save the model
-        self.eval_every = 5 #To evaluate the dev set
+        self.eval_every = 500 #To evaluate the dev set
         # embed_size = 100
 
         self.id2word = id2word #Dictionary for mapping id to word
