@@ -99,18 +99,18 @@ class mrcModel(object):
         
         ### Add Attention Layer using BiDAF
         print("In BiDAF Layer")
-        attention_layer = BidafAttention(2*self.hidden_encoder_size, self.prob_dropout) 
-        combination_cq = attention_layer.add_layer(context_hidden_layer, self.context_mask, question_hidden_layer, self.question_mask, scopename = "BiDAFLayer") #[batch_size, context_len, 1200]
-        hidden_BiDAF = RNNEncoder(self.hidden_bidaf_size, self.prob_dropout)
-        # The final BiDAF layer is the output_hidden_BiDAF
-        output_hidden_BiDAF = hidden_BiDAF.add_layer(combination_cq, self.context_mask, scopename="BiDAFEncoder")#[batch, context_len, 150]
+        # attention_layer = BidafAttention(2*self.hidden_encoder_size, self.prob_dropout) 
+        # combination_cq = attention_layer.add_layer(context_hidden_layer, self.context_mask, question_hidden_layer, self.question_mask, scopename = "BiDAFLayer") #[batch_size, context_len, 1200]
+        # hidden_BiDAF = RNNEncoder(self.hidden_bidaf_size, self.prob_dropout)
+        # # The final BiDAF layer is the output_hidden_BiDAF
+        # output_hidden_BiDAF = hidden_BiDAF.add_layer(combination_cq, self.context_mask, scopename="BiDAFEncoder")#[batch, context_len, 150]
         
-        ### Perform baseline dot product attention
-        # last_dim = context_hidden_layer.get_shape().as_list()[-1]
-        # attn_layer = BasicAttentionLayer(self.prob_dropout, last_dim, last_dim)
-        # _, attn_output = attn_layer.build_graph(question_hidden_layer, self.question_mask, context_hidden_layer)  # attn_output is shape (batch_size, context_len, hidden_size*2)
-        # # Concat attn_output to context_hiddens to get blended_reps
-        # output_hidden_BiDAF = tf.concat([context_hidden_layer, attn_output], axis=2)  # (batch_size, context_len, hidden_size*4)
+        ## Perform baseline dot product attention
+        last_dim = context_hidden_layer.get_shape().as_list()[-1]
+        attn_layer = BasicAttentionLayer(self.prob_dropout, last_dim, last_dim)
+        _, attn_output = attn_layer.build_graph(question_hidden_layer, self.question_mask, context_hidden_layer)  # attn_output is shape (batch_size, context_len, hidden_size*2)
+        # Concat attn_output to context_hiddens to get blended_reps
+        output_hidden_BiDAF = tf.concat([context_hidden_layer, attn_output], axis=2)  # (batch_size, context_len, hidden_size*4)
 
         ### Add Output Layer: Predicting start and end of answer
         print("In output layer")

@@ -11,6 +11,7 @@ from embedding import get_glove
 from mrcModel import *
 
 logging.basicConfig(level=logging.INFO)
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 def modelSetup(sess, model, trainDir):
 	checkpoint = tf.train.get_checkpoint_state(trainDir)
@@ -59,6 +60,7 @@ if __name__ == "__main__":
 
 	# Configuration
 	config = tf.ConfigProto()
+	config.gpu_options.allow_growth = True
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--mode")
 	args = parser.parse_args()
