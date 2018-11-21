@@ -82,6 +82,7 @@ class mrcModel(object):
             self.question_embed = embedding_ops.embedding_lookup(embedding_matrix, self.question_ids) #[batch_size, question_len, 100]
     
     def create_layers(self):
+        
         ### Add highway layer
         embed_size = self.context_embed.get_shape().as_list()[-1] #[100]
         high_way = Highway(embed_size, -1.0)
@@ -105,7 +106,7 @@ class mrcModel(object):
         # The final BiDAF layer is the output_hidden_BiDAF
         output_hidden_BiDAF = hidden_BiDAF.add_layer(combination_cq, self.context_mask, scopename="BiDAFEncoder")#[batch, context_len, 150]
         
-        ## Perform baseline dot product attention
+        # # Perform baseline dot product attention
         # last_dim = context_hidden_layer.get_shape().as_list()[-1]
         # attn_layer = BasicAttentionLayer(self.prob_dropout, last_dim, last_dim)
         # _, attn_output = attn_layer.build_graph(question_hidden_layer, self.question_mask, context_hidden_layer)  # attn_output is shape (batch_size, context_len, hidden_size*2)
