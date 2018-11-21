@@ -34,7 +34,7 @@ class mrcModel(object):
         self.train_dir = './train' #Directiory to save the model
         self.print_every = 5 #To print log
         self.save_every = 500 #To save the model
-        self.eval_every = 500 #To evaluate the dev set
+        self.eval_every = 5 #To evaluate the dev set
         # embed_size = 100
 
         self.id2word = id2word #Dictionary for mapping id to word
@@ -83,12 +83,12 @@ class mrcModel(object):
     
     def create_layers(self):
         ### Add highway layer
-        # embed_size = self.context_embed.get_shape().as_list()[-1] #[100]
-        # high_way = Highway(embed_size, -1.0)
-        # for i in range(2):
-        #     self.context_embed = high_way.add_layer(self.context_embed, scopename = "HighwayLayer") #[batch_size, context_len, 100]
-        #     self.question_embed = high_way.add_layer(self.question_embed, scopename = "HighwayLayer") #[batch_size, ques_len, 100]
-            #Note that both context and embed share the same highway so we send the same scope names
+        embed_size = self.context_embed.get_shape().as_list()[-1] #[100]
+        high_way = Highway(embed_size, -1.0)
+        for i in range(2):
+            self.context_embed = high_way.add_layer(self.context_embed, scopename = "HighwayLayer") #[batch_size, context_len, 100]
+            self.question_embed = high_way.add_layer(self.question_embed, scopename = "HighwayLayer") #[batch_size, ques_len, 100]
+            # Note that both context and embed share the same highway so we send the same scope names
         
         ### Add RNN Encoder Layer
         print("In RNN Encoder layer")
@@ -99,18 +99,18 @@ class mrcModel(object):
         
         ### Add Attention Layer using BiDAF
         print("In BiDAF Layer")
-        # attention_layer = BidafAttention(2*self.hidden_encoder_size, self.prob_dropout) 
-        # combination_cq = attention_layer.add_layer(context_hidden_layer, self.context_mask, question_hidden_layer, self.question_mask, scopename = "BiDAFLayer") #[batch_size, context_len, 1200]
-        # hidden_BiDAF = RNNEncoder(self.hidden_bidaf_size, self.prob_dropout)
-        # # The final BiDAF layer is the output_hidden_BiDAF
-        # output_hidden_BiDAF = hidden_BiDAF.add_layer(combination_cq, self.context_mask, scopename="BiDAFEncoder")#[batch, context_len, 150]
+        attention_layer = BidafAttention(2*self.hidden_encoder_size, self.prob_dropout) 
+        combination_cq = attention_layer.add_layer(context_hidden_layer, self.context_mask, question_hidden_layer, self.question_mask, scopename = "BiDAFLayer") #[batch_size, context_len, 1200]
+        hidden_BiDAF = RNNEncoder(self.hidden_bidaf_size, self.prob_dropout)
+        # The final BiDAF layer is the output_hidden_BiDAF
+        output_hidden_BiDAF = hidden_BiDAF.add_layer(combination_cq, self.context_mask, scopename="BiDAFEncoder")#[batch, context_len, 150]
         
         ### Perform baseline dot product attention
-        last_dim = context_hidden_layer.get_shape().as_list()[-1]
-        attn_layer = BasicAttentionLayer(self.prob_dropout, last_dim, last_dim)
-        _, attn_output = attn_layer.build_graph(question_hidden_layer, self.question_mask, context_hidden_layer)  # attn_output is shape (batch_size, context_len, hidden_size*2)
-        # Concat attn_output to context_hiddens to get blended_reps
-        output_hidden_BiDAF = tf.concat([context_hidden_layer, attn_output], axis=2)  # (batch_size, context_len, hidden_size*4)
+        # last_dim = context_hidden_layer.get_shape().as_list()[-1]
+        # attn_layer = BasicAttentionLayer(self.prob_dropout, last_dim, last_dim)
+        # _, attn_output = attn_layer.build_graph(question_hidden_layer, self.question_mask, context_hidden_layer)  # attn_output is shape (batch_size, context_len, hidden_size*2)
+        # # Concat attn_output to context_hiddens to get blended_reps
+        # output_hidden_BiDAF = tf.concat([context_hidden_layer, attn_output], axis=2)  # (batch_size, context_len, hidden_size*4)
 
         ### Add Output Layer: Predicting start and end of answer
         print("In output layer")
@@ -200,7 +200,9 @@ class mrcModel(object):
             input_feed[self.answer_span] = batch.ans_span
             input_feed[self.prob_dropout] = self.dropout # apply dropout
             # print(input_feed)
-            print(input_feed[self.context_ids])
+            print("From model")
+            # print(batch.context_ids)
+            # print(input_feed[self.context_ids])
             # output_feed contains the things we want to fetch.
             output_feed = [self.updates, self.loss, self.global_step, self.param_norm, self.gradient_norm]
             # Run the model
@@ -286,16 +288,19 @@ class mrcModel(object):
                 # Sometimes evaluate model on dev loss, train F1/EM and dev F1/EM
                 if global_step % self.eval_every == 0:
 
-                    # Get loss for entire dev set and log to tensorboard
+                    # Get loss for entire dev set
                     dev_loss = self.get_dev_loss(session, dev_context_path, dev_qn_path, dev_ans_path)
                     logging.info("Epoch %d, Iter %d, dev loss: %f" % (epoch, global_step, dev_loss))
 
-                    # Get F1/EM on train set and log to tensorboard
+                    # Get F1/EM on train set
+                    logging.info("Calculating Train F1/EM...")
                     train_f1 = self.calc_f1(session, train_context_path, train_qn_path, train_ans_path, "train", num_samples=1000)
                     train_em = self.calc_em(session, train_context_path, train_qn_path, train_ans_path, "train", num_samples=1000)
+                    
                     logging.info("Epoch %d, Iter %d, Train F1 score: %f, Train EM score: %f" % (epoch, global_step, train_f1, train_em))
  
-                    # Get F1/EM on dev set and log to tensorboard
+                    # Get F1/EM on dev set
+                    logging.info("Calculating Dev F1/EM...")
                     dev_f1 = self.calc_f1(session, dev_context_path, dev_qn_path, dev_ans_path, "dev", num_samples=0)
                     dev_em = self.calc_em(session, dev_context_path, dev_qn_path, dev_ans_path, "dev", num_samples=0)
                     logging.info("Epoch %d, Iter %d, Dev F1 score: %f, Dev EM score: %f" % (epoch, global_step, dev_f1, dev_em))
@@ -390,7 +395,7 @@ class mrcModel(object):
 
         em_total = em_total/example_num
         calcTimeEnd = time.time()
-        logging.info("F1 %s: %i examples took %.5f seconds [Score: %.5f]" % (data_name, example_num, calcTimeEnd-calcTimeStart, em_total))
+        logging.info("Exact Match %s: %i examples took %.5f seconds [Score: %.5f]" % (data_name, example_num, calcTimeEnd-calcTimeStart, em_total))
         return em_total
 
     def get_index(self, session, batch, mode):
