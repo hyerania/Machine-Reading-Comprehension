@@ -199,7 +199,7 @@ class mrcModel(object):
         if mode == "train":
             input_feed[self.answer_span] = batch.ans_span
             input_feed[self.prob_dropout] = self.dropout # apply dropout
-            
+
             # output_feed contains the things we want to fetch.
             output_feed = [self.updates, self.loss, self.global_step, self.param_norm, self.gradient_norm]
             # Run the model
