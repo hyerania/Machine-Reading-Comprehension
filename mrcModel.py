@@ -83,7 +83,7 @@ class mrcModel(object):
     
     def create_layers(self):
         ### Add highway layer
-        """"
+        """
         embed_size = self.context_embed.get_shape().as_list()[-1] #[100]
         high_way = Highway(embed_size, -1.0)
         for i in range(2):
