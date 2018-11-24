@@ -83,14 +83,13 @@ class mrcModel(object):
     
     def create_layers(self):
         ### Add highway layer
-        """
         embed_size = self.context_embed.get_shape().as_list()[-1] #[100]
         high_way = Highway(embed_size, -1.0)
         for i in range(2):
             self.context_embed = high_way.add_layer(self.context_embed, scopename = "HighwayLayer") #[batch_size, context_len, 100]
             self.question_embed = high_way.add_layer(self.question_embed, scopename = "HighwayLayer") #[batch_size, ques_len, 100]
             # Note that both context and embed share the same highway so we send the same scope names
-        """
+            
         ### Add RNN Encoder Layer
         print("In RNN Encoder layer")
         rnn_encoder = RNNEncoder(self.hidden_encoder_size, self.prob_dropout) 
@@ -200,10 +199,7 @@ class mrcModel(object):
         if mode == "train":
             input_feed[self.answer_span] = batch.ans_span
             input_feed[self.prob_dropout] = self.dropout # apply dropout
-            # print(input_feed)
-            print("From model")
-            # print(batch.context_ids)
-            # print(input_feed[self.context_ids])
+
             # output_feed contains the things we want to fetch.
             output_feed = [self.updates, self.loss, self.global_step, self.param_norm, self.gradient_norm]
             # Run the model
