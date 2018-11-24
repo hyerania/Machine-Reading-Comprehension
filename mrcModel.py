@@ -23,12 +23,12 @@ class mrcModel(object):
         self.context_len = 300 #Max number of words in context
         self.question_len = 30 #Max number of words in question
         self.batch_size = 60 #Batch size
-        self.num_epochs = 15
+        self.num_epochs = 20
         
         #Learning parameters
         self.max_gradient_norm = 5.0 #Param for gradient Clipping
         self.learning_rate = 0.001 #Learning rate
-        self.dropout = 0.85 #Drop out for RNN encoder layer
+        self.dropout = 0.75 #Drop out for RNN encoder layer
         
         #Saving model parameters
         self.train_dir = './train' #Directiory to save the model
