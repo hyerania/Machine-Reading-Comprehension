@@ -391,7 +391,7 @@ class mrcModel(object):
         start_probs, end_probs = self.run_iter(session, batch, mode)
 
         if(spanMode == True):
-            print("SPAN MODE FOR SURE!! Just making sure!")
+            print("SPAN MODE Calculating")
             start_index = np.empty(shape = (self.batch_size), dtype=int)
             end_index = np.empty(shape=(self.batch_size), dtype=int)
             max_prob = np.empty(shape=(self.batch_size), dtype=float)
@@ -404,14 +404,14 @@ class mrcModel(object):
                 for j in range(self.context_len - 16):
                     end_subset = end_probs[i, j:j+16]
                     end_max = np.amax(end_subset)
-                    end_index = np.argmax(end_subset)
+                    end_pos = np.argmax(end_subset)
                     s_prob = start_probs[i, j]
                     new_max = end_max * s_prob
 
                     if(new_max > test_max):
-                        test_max = new_max
                         test_start = i
-                        test_end = test_start + end_index
+                        test_end = test_start + end_pos
+                        test_max = new_max
                 
                 start_index[i] = test_start
                 end_index[i] = test_end
