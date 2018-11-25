@@ -63,6 +63,7 @@ if __name__ == "__main__":
 	config.gpu_options.allow_growth = True
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--mode")
+	parser.add_argument("--spanMode")
 	args = parser.parse_args()
 
 	# Train Mode
@@ -73,9 +74,11 @@ if __name__ == "__main__":
 
 		with tf.Session(config = config) as sess:
 			modelSetup(sess, mrcModel, train_dir)
-			print ("Model finished setup")
-			mrcModel.train(sess, train_context, train_questions, train_ans_span, dev_questions, dev_context, dev_ans_span)
-
+			if args.spanMode == 'True':
+				mrcModel.train(sess, train_context, train_questions, train_ans_span, dev_questions, dev_context, dev_ans_span, spanMode=True)
+			else:
+				mrcModel.train(sess, train_context, train_questions, train_ans_span, dev_questions, dev_context, dev_ans_span, spanMode=False)
+		print ("Training Network Finished")
 	# Test Mode
 	elif args.mode == 'test':
 		print("Testing Network")
