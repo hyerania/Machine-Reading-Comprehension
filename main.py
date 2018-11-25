@@ -55,8 +55,6 @@ if __name__ == "__main__":
 	## Create Glove Vector
 	id2word, word2id, embed_matrix = get_glove(os.path.join(data_dir,"glove.6B.100d.txt"), 100)
 
-	# Initialize model
-	mrcModel = mrcModel(id2word, word2id, embed_matrix)
 
 	# Configuration
 	config = tf.ConfigProto()
@@ -64,7 +62,29 @@ if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--mode")
 	parser.add_argument("--spanMode")
+	parser.add_argument("--CharCNN")
+	parser.add_argument("--Highway")
 	args = parser.parse_args()
+    
+	spanMode = False
+	CharCNN = False
+	Highway = False
+	Bidaf = False
+	if args.spanMode == 'True':
+		spanMode = True
+	if args.CharCNN == 'True':
+		CharCNN = True
+	if args.Highway == 'True':
+		Highway = True
+	if args.Bidaf == 'True':
+		Bidaf = True
+	print('Mode Running:')
+	print('\n SpanMode: ', spanMode)
+	print('\n CharCNN: ', CharCNN)
+	print('\n Highway: ', Highway)
+	print('\n Bidaf: ', Bidaf)
+	# Initialize model
+	mrcModel = mrcModel(id2word, word2id, embed_matrix, CharCNN, Highway, Bidaf)
 
 	# Train Mode
 	if args.mode == 'train':
@@ -74,10 +94,8 @@ if __name__ == "__main__":
 
 		with tf.Session(config = config) as sess:
 			modelSetup(sess, mrcModel, train_dir)
-			if args.spanMode == 'True':
-				mrcModel.train(sess, train_context, train_questions, train_ans_span, dev_questions, dev_context, dev_ans_span, spanMode=True)
-			else:
-				mrcModel.train(sess, train_context, train_questions, train_ans_span, dev_questions, dev_context, dev_ans_span, spanMode=False)
+			mrcModel.train(sess, train_context, train_questions, train_ans_span, dev_questions, dev_context, dev_ans_span, spanMode= spanMode, CharCNN = CharCNN)
+			
 		print ("Training Network Finished")
 	# Test Mode
 	elif args.mode == 'test':
