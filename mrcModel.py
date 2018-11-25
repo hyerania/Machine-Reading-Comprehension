@@ -28,7 +28,7 @@ class mrcModel(object):
         #Learning parameters
         self.max_gradient_norm = 5.0 #Param for gradient Clipping
         self.learning_rate = 0.001 #Learning rate
-        self.dropout = 0.75 #Drop out for RNN encoder layer
+        self.dropout = 0.65 #Drop out for RNN encoder layer
         
         #Saving model parameters
         self.train_dir = './train' #Directiory to save the model
@@ -82,13 +82,13 @@ class mrcModel(object):
             self.question_embed = embedding_ops.embedding_lookup(embedding_matrix, self.question_ids) #[batch_size, question_len, 100]
     
     def create_layers(self):
-        ### Add highway layer
-        embed_size = self.context_embed.get_shape().as_list()[-1] #[100]
-        high_way = Highway(embed_size, -1.0)
-        for i in range(2):
-            self.context_embed = high_way.add_layer(self.context_embed, scopename = "HighwayLayer") #[batch_size, context_len, 100]
-            self.question_embed = high_way.add_layer(self.question_embed, scopename = "HighwayLayer") #[batch_size, ques_len, 100]
-            # Note that both context and embed share the same highway so we send the same scope names
+        # ### Add highway layer
+        # embed_size = self.context_embed.get_shape().as_list()[-1] #[100]
+        # high_way = Highway(embed_size, -1.0)
+        # for i in range(2):
+        #     self.context_embed = high_way.add_layer(self.context_embed, scopename = "HighwayLayer") #[batch_size, context_len, 100]
+        #     self.question_embed = high_way.add_layer(self.question_embed, scopename = "HighwayLayer") #[batch_size, ques_len, 100]
+        #     # Note that both context and embed share the same highway so we send the same scope names
             
         ### Add RNN Encoder Layer
         print("In RNN Encoder layer")
