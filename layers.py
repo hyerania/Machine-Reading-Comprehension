@@ -32,11 +32,11 @@ class RNNEncoder():
         """
         with vs.variable_scope(scopename, reuse=tf.AUTO_REUSE):
             
-            rnn_cell_fw = rnn_cell.GRUCell(self.size)
-            # rnn_cell_fw = rnn_cell.LSTMCell(self.size)
+            # rnn_cell_fw = rnn_cell.GRUCell(self.size)
+            rnn_cell_fw = rnn_cell.LSTMCell(self.size)
             rnn_cell_fw = DropoutWrapper(rnn_cell_fw, input_keep_prob=self.dropout_param)
-            rnn_cell_bw = rnn_cell.GRUCell(self.size)
-            # rnn_cell_bw = rnn_cell.LSTMCell(self.size)
+            # rnn_cell_bw = rnn_cell.GRUCell(self.size)
+            rnn_cell_bw = rnn_cell.LSTMCell(self.size)
             rnn_cell_bw = DropoutWrapper(rnn_cell_bw, input_keep_prob=self.dropout_param)
             
             input_lens = tf.reduce_sum(masks, reduction_indices=1) # input length for each batch
