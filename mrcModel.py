@@ -219,7 +219,7 @@ class mrcModel(object):
     
     
             
-    def train(self, session, train_context_path, train_qn_path, train_ans_path, dev_qn_path, dev_context_path, dev_ans_path):
+    def train(self, session, train_context_path, train_qn_path, train_ans_path, dev_qn_path, dev_context_path, dev_ans_path, spanMode):
         """
         Main training loop.
         Inputs:
@@ -243,28 +243,15 @@ class mrcModel(object):
         # Checkpoint management.
         # We keep one latest checkpoint, and one best checkpoint (early stopping)
         checkpoint_path = os.path.join(self.train_dir, "qa.ckpt")
-        #bestmodel_dir = os.path.join(self.train_dir, "best_checkpoint")
-        #bestmodel_ckpt_path = os.path.join(bestmodel_dir, "qa_best.ckpt")
-        #best_dev_f1 = None
-        #best_dev_em = None
-
         epoch = 0
-        # while self.FLAGS.num_epochs == 0 or epoch < self.FLAGS.num_epochs:
-
-        #logging.info("Beginning training loop...")
-        #WHYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY????
         while epoch < self.num_epochs:
             epoch += 1
-            #epoch_tic = time.time()
 
             # Loop over batches
             for batch in get_batch_generator(self.word2id, train_context_path, train_qn_path, train_ans_path, self.batch_size, context_len=self.context_len, question_len=self.question_len, discard_examples = True):
 
                 # Run training iteration
-                #iter_tic = time.time()
                 loss, global_step, param_norm, grad_norm = self.run_iter(session, batch, mode = 'train')
-                #iter_toc = time.time()
-                #iter_time = iter_toc - iter_tic
 
                 # Update exponentially-smoothed loss
                 if not exp_loss: # first iter
@@ -291,21 +278,21 @@ class mrcModel(object):
 
                     # Get F1/EM on train set
                     logging.info("Calculating Train F1/EM...")
-                    train_f1 = self.calc_f1(session, train_context_path, train_qn_path, train_ans_path, "train", num_samples=1000)
-                    train_em = self.calc_em(session, train_context_path, train_qn_path, train_ans_path, "train", num_samples=1000)
+                    train_f1 = self.calc_f1(session, train_context_path, train_qn_path, train_ans_path, "train", num_samples=1000, spanMode=spanMode)
+                    train_em = self.calc_em(session, train_context_path, train_qn_path, train_ans_path, "train", num_samples=1000, spanMode=spanMode)
                     
                     logging.info("Epoch %d, Iter %d, Train F1 score: %f, Train EM score: %f" % (epoch, global_step, train_f1, train_em))
  
                     # Get F1/EM on dev set
                     logging.info("Calculating Dev F1/EM...")
-                    dev_f1 = self.calc_f1(session, dev_context_path, dev_qn_path, dev_ans_path, "dev", num_samples=0)
-                    dev_em = self.calc_em(session, dev_context_path, dev_qn_path, dev_ans_path, "dev", num_samples=0)
+                    dev_f1 = self.calc_f1(session, dev_context_path, dev_qn_path, dev_ans_path, "dev", num_samples=0, spanMode=spanMode)
+                    dev_em = self.calc_em(session, dev_context_path, dev_qn_path, dev_ans_path, "dev", num_samples=0, spanMode=spanMode)
                     logging.info("Epoch %d, Iter %d, Dev F1 score: %f, Dev EM score: %f" % (epoch, global_step, dev_f1, dev_em))
                     logging.info("End of epoch %i" % (epoch))
 
     
     ### HELPER FUNCTIONS
-    def calc_f1(self, session, context_path, question_path, answer_path, data_name, num_samples):
+    def calc_f1(self, session, context_path, question_path, answer_path, data_name, num_samples, spanMode):
         '''
         Calculate the F1 Score and returen the average for all or only a certain number of samples
         Inputs:
@@ -319,9 +306,8 @@ class mrcModel(object):
         '''
         f1_total = 0
         example_num = 0
-        calcTimeStart = time.time()
         for batch in get_batch_generator(self.word2id, context_path, question_path, answer_path, self.batch_size, context_len=self.context_len, question_len = self.question_len, discard_examples = False):
-            start_index_pred, end_index_pred = self.get_index(session, batch, "f1Score")
+            start_index_pred, end_index_pred = self.get_index(session, batch, "f1Score", spanMode)
             start_index_pred = start_index_pred.tolist()
             end_index_pred = end_index_pred.tolist()
 
@@ -346,11 +332,10 @@ class mrcModel(object):
                 break
 
         f1_total = f1_total/example_num
-        calcTimeEnd = time.time()
-        logging.info("F1 %s: %i examples took %.5f seconds [Score: %.5f]" % (data_name, example_num, calcTimeEnd-calcTimeStart, f1_total))
+        logging.info("F1 %s: %i examples got a score of %.5f]" % (data_name, example_num, f1_total))
         return f1_total
     
-    def calc_em(self, session, context_path, question_path, answer_path, data_name, num_samples):
+    def calc_em(self, session, context_path, question_path, answer_path, data_name, num_samples, spanMode):
         '''
         Calculate the EM Score and returen the average for all or only a certain number of samples
         Inputs:
@@ -364,9 +349,8 @@ class mrcModel(object):
         '''
         em_total = 0
         example_num = 0
-        calcTimeStart = time.time()
         for batch in get_batch_generator(self.word2id, context_path, question_path, answer_path, self.batch_size, context_len = self.context_len, question_len = self.question_len, discard_examples = False):
-            start_index_pred, end_index_pred = self.get_index(session, batch, "emScore")
+            start_index_pred, end_index_pred = self.get_index(session, batch, "emScore", spanMode)
             start_index_pred = start_index_pred.tolist()
             end_index_pred = end_index_pred.tolist()
 
@@ -391,22 +375,52 @@ class mrcModel(object):
                 break
 
         em_total = em_total/example_num
-        calcTimeEnd = time.time()
-        logging.info("Exact Match %s: %i examples took %.5f seconds [Score: %.5f]" % (data_name, example_num, calcTimeEnd-calcTimeStart, em_total))
+        logging.info("Exact Match %s: %i examples got a score: %.5f]" % (data_name, example_num, em_total))
         return em_total
 
-    def get_index(self, session, batch, mode):
+    def get_index(self, session, batch, mode, spanMode):
         '''
         Uses forward pass only
         Inputs:
             session: current Tensorflow session
             batch: Batch object
             mode: Describing f1Score or emScore for the run_iter function
+            span: True boolean uses smart span selection of positions, otherwise use basic selection
         Returns the most likely start and end indexes for the answer for each example
         '''
         start_probs, end_probs = self.run_iter(session, batch, mode)
-        start_index = np.argmax(start_probs, axis=1)
-        end_index = np.argmax(end_probs, axis=1)
+
+        if(spanMode == True):
+            print("SPAN MODE FOR SURE!! Just making sure!")
+            start_index = np.empty(shape = (self.batch_size), dtype=int)
+            end_index = np.empty(shape=(self.batch_size), dtype=int)
+            max_prob = np.empty(shape=(self.batch_size), dtype=float)
+
+            #Based on context length analysis, 95th percentile are approx. 245 words)
+            for i in range(self.batch_size):
+                test_start = 0
+                test_end = 0
+                test_max = 0
+                for j in range(self.context_len - 16):
+                    end_subset = end_probs[i, j:j+16]
+                    end_max = np.amax(end_subset)
+                    end_index = np.argmax(end_subset)
+                    s_prob = start_probs[i, j]
+                    new_max = end_max * s_prob
+
+                    if(new_max > test_max):
+                        test_max = new_max
+                        test_start = i
+                        test_end = test_start + end_index
+                
+                start_index[i] = test_start
+                end_index[i] = test_end
+                max_prob[i] = test_max
+
+
+        else:
+            start_index = np.argmax(start_probs, axis=1)
+            end_index = np.argmax(end_probs, axis=1)
 
         return start_index, end_index
         
