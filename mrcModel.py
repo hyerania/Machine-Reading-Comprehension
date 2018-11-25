@@ -51,7 +51,7 @@ class mrcModel(object):
         with tf.variable_scope("QAModel", initializer=tf.contrib.layers.variance_scaling_initializer(factor=1.0, uniform=True)):
             self.add_placeholders() #Add the inputs(which dont require gradients)
             self.add_embed_layer(embed_matrix) #Layer to get the embeddings
-            # self.add_char_embed_layer()
+            self.add_char_embed_layer()
             self.create_layers() #Add the required layers
             self.add_loss() #Loss layer
 
