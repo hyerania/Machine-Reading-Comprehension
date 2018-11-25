@@ -6,8 +6,8 @@ import time
 import tensorflow as tf
 from tensorflow.python.ops import embedding_ops
 from tensorflow.python.ops import variable_scope as vs
-from layers import Highway, RNNEncoder, BidafAttention, SimpleSoftmaxLayer, BasicAttentionLayer
-from helperFunctions import masked_softmax
+from layers import Highway, RNNEncoder, BidafAttention, SimpleSoftmaxLayer, BasicAttentionLayer, CharEmbedding
+from helperFunctions import masked_softmax, create_char_dicts, word_to_token_ids, padded_char_ids
 import logging
 from batcher import get_batch_generator
 from official_evaluation import f1_score, exact_match_score
@@ -28,7 +28,7 @@ class mrcModel(object):
         #Learning parameters
         self.max_gradient_norm = 5.0 #Param for gradient Clipping
         self.learning_rate = 0.001 #Learning rate
-        self.dropout = 0.65 #Drop out for RNN encoder layer
+        self.dropout = 0.75 #Drop out for RNN encoder layer
         
         #Saving model parameters
         self.train_dir = './train' #Directiory to save the model
@@ -39,9 +39,19 @@ class mrcModel(object):
 
         self.id2word = id2word #Dictionary for mapping id to word
         self.word2id = word2id #Dictionary for mapping word to id
+        
+        
+        #Parameters for Char embeddings
+        _, _, self.char_vocab = create_char_dicts() #Char vocab 
+        self.char_embedding_size = 8 #Size of char embedding
+        self.word_len = 16 #maximum word length
+        self.char_out_size = 100 #output size after cnn
+        self.window_width = 5 #kernel size for 1D convolution
+        
         with tf.variable_scope("QAModel", initializer=tf.contrib.layers.variance_scaling_initializer(factor=1.0, uniform=True)):
             self.add_placeholders() #Add the inputs(which dont require gradients)
             self.add_embed_layer(embed_matrix) #Layer to get the embeddings
+            self.add_char_embed_layer()
             self.create_layers() #Add the required layers
             self.add_loss() #Loss layer
 
@@ -73,6 +83,10 @@ class mrcModel(object):
 
         # Add a placeholder to feed in the probability (for dropout)
         self.prob_dropout = tf.placeholder_with_default(1.0, shape=())
+        
+        ## For Char CNN
+        self.char_ids_context = tf.placeholder(tf.int32, shape=[None, self.context_len, self.word_len])
+        self.char_ids_question = tf.placeholder(tf.int32, shape=[None, self.question_len, self.word_len])
 
     def add_embed_layer(self, embed_matrix):
         print("In Add Embed Layer")
@@ -80,15 +94,24 @@ class mrcModel(object):
             embedding_matrix = tf.constant(embed_matrix, dtype=tf.float32, name="embed_matrix") #[400002, 100]
             self.context_embed = embedding_ops.embedding_lookup(embedding_matrix, self.context_ids) #[batch_size, context_len, 100]
             self.question_embed = embedding_ops.embedding_lookup(embedding_matrix, self.question_ids) #[batch_size, question_len, 100]
+            
+            
+    def add_char_embed_layer(self):
+        print("In Char Embed Layer")
+        char_embedding = CharEmbedding(self.char_vocab, self.char_embedding_size, self.word_len, self.char_out_size, self.window_width, self.dropout)
+        context_emb_out = char_embedding.add_layer(self.char_ids_context, scopename = 'char_embed') #[batch, context_len, 100]
+        question_emb_out = char_embedding.add_layer(self.char_ids_question, scopename = 'char_embed') #[batch, ques_len. 100]
+        self.context_embed = tf.concat((self.context_embed, context_emb_out), axis = 2) #[batch, context_len, 200]
+        self.question_embed = tf.concat((self.question_embed, question_emb_out), axis=2) #[batch, ques_len, 200]
     
     def create_layers(self):
-        # ### Add highway layer
-        # embed_size = self.context_embed.get_shape().as_list()[-1] #[100]
-        # high_way = Highway(embed_size, -1.0)
-        # for i in range(2):
-        #     self.context_embed = high_way.add_layer(self.context_embed, scopename = "HighwayLayer") #[batch_size, context_len, 100]
-        #     self.question_embed = high_way.add_layer(self.question_embed, scopename = "HighwayLayer") #[batch_size, ques_len, 100]
-        #     # Note that both context and embed share the same highway so we send the same scope names
+        ### Add highway layer
+        embed_size = self.context_embed.get_shape().as_list()[-1] #[100] / [200 if char encoding]
+        high_way = Highway(embed_size, -1.0)
+        for i in range(2):
+            self.context_embed = high_way.add_layer(self.context_embed, scopename = "HighwayLayer") #[batch_size, context_len, 100]
+            self.question_embed = high_way.add_layer(self.question_embed, scopename = "HighwayLayer") #[batch_size, ques_len, 100]
+            # Note that both context and embed share the same highway so we send the same scope names
             
         ### Add RNN Encoder Layer
         print("In RNN Encoder layer")
@@ -196,6 +219,9 @@ class mrcModel(object):
         input_feed[self.context_mask] = batch.context_mask
         input_feed[self.question_ids] = batch.qn_ids
         input_feed[self.question_mask] = batch.qn_mask
+        #For char embeddings
+        input_feed[self.char_ids_context] = self.padded_char_ids(batch, batch.context_ids)
+        input_feed[self.char_ids_qn] = self.padded_char_ids(batch, batch.qn_ids)
         if mode == "train":
             input_feed[self.answer_span] = batch.ans_span
             input_feed[self.prob_dropout] = self.dropout # apply dropout
@@ -219,7 +245,7 @@ class mrcModel(object):
     
     
             
-    def train(self, session, train_context_path, train_qn_path, train_ans_path, dev_qn_path, dev_context_path, dev_ans_path, spanMode):
+    def train(self, session, train_context_path, train_qn_path, train_ans_path, dev_qn_path, dev_context_path, dev_ans_path):
         """
         Main training loop.
         Inputs:
@@ -243,15 +269,28 @@ class mrcModel(object):
         # Checkpoint management.
         # We keep one latest checkpoint, and one best checkpoint (early stopping)
         checkpoint_path = os.path.join(self.train_dir, "qa.ckpt")
+        #bestmodel_dir = os.path.join(self.train_dir, "best_checkpoint")
+        #bestmodel_ckpt_path = os.path.join(bestmodel_dir, "qa_best.ckpt")
+        #best_dev_f1 = None
+        #best_dev_em = None
+
         epoch = 0
+        # while self.FLAGS.num_epochs == 0 or epoch < self.FLAGS.num_epochs:
+
+        #logging.info("Beginning training loop...")
+        #WHYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY????
         while epoch < self.num_epochs:
             epoch += 1
+            #epoch_tic = time.time()
 
             # Loop over batches
             for batch in get_batch_generator(self.word2id, train_context_path, train_qn_path, train_ans_path, self.batch_size, context_len=self.context_len, question_len=self.question_len, discard_examples = True):
 
                 # Run training iteration
+                #iter_tic = time.time()
                 loss, global_step, param_norm, grad_norm = self.run_iter(session, batch, mode = 'train')
+                #iter_toc = time.time()
+                #iter_time = iter_toc - iter_tic
 
                 # Update exponentially-smoothed loss
                 if not exp_loss: # first iter
@@ -278,21 +317,21 @@ class mrcModel(object):
 
                     # Get F1/EM on train set
                     logging.info("Calculating Train F1/EM...")
-                    train_f1 = self.calc_f1(session, train_context_path, train_qn_path, train_ans_path, "train", num_samples=1000, spanMode=spanMode)
-                    train_em = self.calc_em(session, train_context_path, train_qn_path, train_ans_path, "train", num_samples=1000, spanMode=spanMode)
+                    train_f1 = self.calc_f1(session, train_context_path, train_qn_path, train_ans_path, "train", num_samples=1000)
+                    train_em = self.calc_em(session, train_context_path, train_qn_path, train_ans_path, "train", num_samples=1000)
                     
                     logging.info("Epoch %d, Iter %d, Train F1 score: %f, Train EM score: %f" % (epoch, global_step, train_f1, train_em))
  
                     # Get F1/EM on dev set
                     logging.info("Calculating Dev F1/EM...")
-                    dev_f1 = self.calc_f1(session, dev_context_path, dev_qn_path, dev_ans_path, "dev", num_samples=0, spanMode=spanMode)
-                    dev_em = self.calc_em(session, dev_context_path, dev_qn_path, dev_ans_path, "dev", num_samples=0, spanMode=spanMode)
+                    dev_f1 = self.calc_f1(session, dev_context_path, dev_qn_path, dev_ans_path, "dev", num_samples=0)
+                    dev_em = self.calc_em(session, dev_context_path, dev_qn_path, dev_ans_path, "dev", num_samples=0)
                     logging.info("Epoch %d, Iter %d, Dev F1 score: %f, Dev EM score: %f" % (epoch, global_step, dev_f1, dev_em))
                     logging.info("End of epoch %i" % (epoch))
 
     
     ### HELPER FUNCTIONS
-    def calc_f1(self, session, context_path, question_path, answer_path, data_name, num_samples, spanMode):
+    def calc_f1(self, session, context_path, question_path, answer_path, data_name, num_samples):
         '''
         Calculate the F1 Score and returen the average for all or only a certain number of samples
         Inputs:
@@ -306,8 +345,9 @@ class mrcModel(object):
         '''
         f1_total = 0
         example_num = 0
+        calcTimeStart = time.time()
         for batch in get_batch_generator(self.word2id, context_path, question_path, answer_path, self.batch_size, context_len=self.context_len, question_len = self.question_len, discard_examples = False):
-            start_index_pred, end_index_pred = self.get_index(session, batch, "f1Score", spanMode)
+            start_index_pred, end_index_pred = self.get_index(session, batch, "f1Score")
             start_index_pred = start_index_pred.tolist()
             end_index_pred = end_index_pred.tolist()
 
@@ -332,10 +372,11 @@ class mrcModel(object):
                 break
 
         f1_total = f1_total/example_num
-        logging.info("F1 %s: %i examples got a score of %.5f]" % (data_name, example_num, f1_total))
+        calcTimeEnd = time.time()
+        logging.info("F1 %s: %i examples took %.5f seconds [Score: %.5f]" % (data_name, example_num, calcTimeEnd-calcTimeStart, f1_total))
         return f1_total
     
-    def calc_em(self, session, context_path, question_path, answer_path, data_name, num_samples, spanMode):
+    def calc_em(self, session, context_path, question_path, answer_path, data_name, num_samples):
         '''
         Calculate the EM Score and returen the average for all or only a certain number of samples
         Inputs:
@@ -349,8 +390,9 @@ class mrcModel(object):
         '''
         em_total = 0
         example_num = 0
+        calcTimeStart = time.time()
         for batch in get_batch_generator(self.word2id, context_path, question_path, answer_path, self.batch_size, context_len = self.context_len, question_len = self.question_len, discard_examples = False):
-            start_index_pred, end_index_pred = self.get_index(session, batch, "emScore", spanMode)
+            start_index_pred, end_index_pred = self.get_index(session, batch, "emScore")
             start_index_pred = start_index_pred.tolist()
             end_index_pred = end_index_pred.tolist()
 
@@ -375,17 +417,17 @@ class mrcModel(object):
                 break
 
         em_total = em_total/example_num
-        logging.info("Exact Match %s: %i examples got a score: %.5f]" % (data_name, example_num, em_total))
+        calcTimeEnd = time.time()
+        logging.info("Exact Match %s: %i examples took %.5f seconds [Score: %.5f]" % (data_name, example_num, calcTimeEnd-calcTimeStart, em_total))
         return em_total
 
-    def get_index(self, session, batch, mode, spanMode):
+    def get_index(self, session, batch, mode):
         '''
         Uses forward pass only
         Inputs:
             session: current Tensorflow session
             batch: Batch object
             mode: Describing f1Score or emScore for the run_iter function
-            span: True boolean uses smart span selection of positions, otherwise use basic selection
         Returns the most likely start and end indexes for the answer for each example
         '''
         start_probs, end_probs = self.run_iter(session, batch, mode)
