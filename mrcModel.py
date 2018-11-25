@@ -409,13 +409,13 @@ class mrcModel(object):
                     new_max = end_max * s_prob
 
                     if(new_max > test_max):
-                        test_start = i
+                        test_start = j
                         test_end = test_start + end_pos
                         test_max = new_max
                 
                 start_index[i] = test_start
                 end_index[i] = test_end
-                max_prob[i] = test_max
+                max_prob[i] = round(test_max, 4)
 
 
         else:
