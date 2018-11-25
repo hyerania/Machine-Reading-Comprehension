@@ -27,8 +27,8 @@ class mrcModel(object):
         
         #Learning parameters
         self.max_gradient_norm = 5.0 #Param for gradient Clipping
-        self.learning_rate = 0.0001 #Learning rate
-        self.dropout = 0.65 #Drop out for RNN encoder layer
+        self.learning_rate = 0.0005 #Learning rate
+        self.dropout = 0.70 #Drop out for RNN encoder layer
         
         #Saving model parameters
         self.train_dir = './train' #Directiory to save the model
