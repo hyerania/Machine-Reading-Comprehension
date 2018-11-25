@@ -3,6 +3,7 @@ from tensorflow.python.ops.rnn_cell import DropoutWrapper
 from tensorflow.python.ops import variable_scope as vs
 from tensorflow.python.ops import rnn_cell
 from helperFunctions import masked_softmax, matrix_multiplication
+from tensorflow.python.ops import embedding_ops
 
 
 class RNNEncoder():
@@ -195,6 +196,72 @@ class Highway():
         
             output_highway = tf.add(tf.multiply(H, T), tf.multiply(inputs, C), "output_highway")
             return output_highway
+        
+        
+class CharEmbedding():
+    """
+    Module for CharEmbedding. Learn an embedding matrix for characters in the train set. 
+    Then learns a filter to convert get the final embeddings 
+    """
+    def __init__(self, char_vocab, char_embedding_size, word_len, char_out_size, window_width, dropout_param):
+        self.char_vocab = char_vocab #Size of character vocab in dataset
+        self.char_embedding_size = char_embedding_size #Size of character embeddings
+        self.word_len = word_len #maximum length of the word
+        self.char_out_size = char_out_size #Size of character embedding from CNN layer
+        self.window_width = window_width #Kernel size for 1D convolution
+        self.dropout_param = dropout_param
+        
+    def conv1d(self, input_, output_size, width, stride, scope_name):
+            '''
+            :param input_: A tensor of embedded tokens with shape [batch_size,max_length,embedding_size]
+            :param output_size: The number of feature maps we'd like to calculate
+            :param width: The filter width
+            :param stride: The stride
+            :return: A tensor of the concolved input with shape [batch_size,max_length,output_size]
+            '''
+            inputSize = input_.get_shape()[
+                -1]  # How many channels on the input (The size of our embedding for instance)
+
+            # This is the kicker where we make our text an image of height 1
+            input_ = tf.expand_dims(input_, axis=1)  # Change the shape to [batch_size,1,max_length,output_size]
+
+            # Make sure the height of the filter is 1
+            with tf.variable_scope(scope_name, reuse=tf.AUTO_REUSE):
+                filter_ = tf.get_variable("conv_filter", shape=[1, width, inputSize, output_size])
+
+            # Run the convolution as if this were an image
+            convolved = tf.nn.conv2d(input_, filter=filter_, strides=[1, 1, stride, 1], padding="VALID")
+            # Remove the extra dimension, eg make the shape [batch_size,max_length,output_size]
+            result = tf.squeeze(convolved, axis=1)
+            return result
+        
+    def add_layer(self, char_ids_seq, scopename):
+        """
+        Input:
+            char_ids_seq : [batch, seq_len, word_len]
+        """
+        with vs.variable_scope(scopename):
+            #trainable embedding matrix
+            seq_len = char_ids_seq.shape[1]
+            char_emb_matrix = tf.Variable(tf.random_uniform((self.char_vocab, self.char_embedding_size), -1, 1)) #[char_vocab, char_embedding_size]
+            
+            #Char Embedding for seq
+            flat_seq_char_ids = tf.reshape(char_ids_seq, shape=(-1, self.word_len)) #[batch*seq_len, word_len]
+            print(flat_seq_char_ids.shape)
+            seq_char_embs = embedding_ops.embedding_lookup(char_emb_matrix, flat_seq_char_ids) # [batch*seq_len, word_max_len, char_embedding_size]
+            print(seq_char_embs.shape)
+            seq_char_embs = tf.reshape(seq_char_embs, shape=(
+           -1, self.word_len, self.char_embedding_size)) # [batch_size*context_len, word_max_len, char_embedding_size]
+            
+            #1D Convolution for context
+            seq_emb_out = self.conv1d(input_= seq_char_embs, output_size = self.char_out_size,  width =self.window_width , stride=1, scope_name='char-cnn')
+            #[batch*seq_len, word_len, output_size]
+            seq_emb_out = tf.nn.dropout(seq_emb_out, self.dropout_param)
+            seq_emb_out = tf.reduce_sum(seq_emb_out, axis = 1)#[batch*seq_len, output_size]
+            seq_emb_out =  tf.reshape(seq_emb_out, shape=(-1, seq_len, self.char_out_size))# [batch, context_len, char_out_size]
+            
+            return seq_emb_out
+
         
         
 class BasicAttentionLayer(object):

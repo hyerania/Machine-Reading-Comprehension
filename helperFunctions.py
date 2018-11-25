@@ -37,3 +37,60 @@ def matrix_multiplication(mat, weight):
         mat_reshape = tf.reshape(mat, [-1, mat_shape[-1]])  # [batch_size * n, m]
         mul = tf.matmul(mat_reshape, weight)  # [batch_size * n, p]
         return tf.reshape(mul, [-1, mat_shape[1], weight_shape[-1]])  # reshape to batch_size, seq_len, p
+    
+
+def create_char_dicts(CHAR_PAD_ID=0, CHAR_UNK_ID = 1, _CHAR_PAD = '*', _CHAR_UNK = '$' ):
+
+        unique_chars = ['!', '"', '#', '$', '%', '&', "'", '(', ')', '+', ',', '-', '.', '/', '0', '1', '2', '3',
+                        '4', '5', '6', '7', '8', '9', ':', ';', '<', '=', '>', '?', '[', ']', '^', 'a', 'b', 'c', 'd',
+                        'e' , 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+                        '~', ]  # based on analysis in jupyter notebook
+
+        num_chars = len(unique_chars)
+
+        idx2char = dict(enumerate(unique_chars, 2))  ##reserve first 2 spots
+        idx2char[CHAR_PAD_ID] = _CHAR_PAD
+        idx2char[CHAR_UNK_ID] = _CHAR_UNK
+
+        ##Create reverse char2idx
+        char2idx = {v: k for k, v in idx2char.items()}
+        return char2idx, idx2char, num_chars
+
+def word_to_token_ids(self, word):
+        """Turns a word into char idxs
+            e.g. "know" -> [9, 32, 16, 96]
+            Note any token that isn't in the char2idx mapping gets mapped to the id for UNK_CHAR
+        """
+        char2idx, idx2char, _ = self.create_char_dicts()
+        char_tokens = list(word)  # list of chars in word
+        char_ids = [char2idx.get(w, 1) for w in char_tokens]
+        return char_tokens, char_ids
+
+
+def padded_char_ids(batch, token_ids, id2word, word_len):  # have to use token_ids since only those are padded
+
+        charids_batch = []
+        for i in range(batch.batch_size):
+            charids_line = []
+            #for each example
+            token_row = token_ids[i,:]
+            # print("Each token row is", token_row)
+            # print("Shape token row is ", token_row.shape)
+            for j in range(len(token_row)):
+                id = token_row[j]
+                # print("each id is:" ,id)
+                word = id2word[id] # convert token id to word
+                _, char_ids = word_to_token_ids(word)
+                # for each word we get char_ids but they maybe different_length
+                if len(char_ids) < word_len: #pad with CHAR pad tokens
+                    while len(char_ids) < word_len:
+                        char_ids.append(0)
+                    pad_char_ids = char_ids
+
+                else:  # if longer truncate to word max len
+                    pad_char_ids = char_ids[:word_len]
+
+                charids_line.append(pad_char_ids)
+            charids_batch.append(charids_line)
+
+        return charids_batch

@@ -6,8 +6,8 @@ import time
 import tensorflow as tf
 from tensorflow.python.ops import embedding_ops
 from tensorflow.python.ops import variable_scope as vs
-from layers import Highway, RNNEncoder, BidafAttention, SimpleSoftmaxLayer, BasicAttentionLayer
-from helperFunctions import masked_softmax
+from layers import Highway, RNNEncoder, BidafAttention, SimpleSoftmaxLayer, BasicAttentionLayer, CharEmbedding
+from helperFunctions import masked_softmax, create_char_dicts, word_to_token_ids, padded_char_ids
 import logging
 from batcher import get_batch_generator
 from official_evaluation import f1_score, exact_match_score
@@ -39,9 +39,19 @@ class mrcModel(object):
 
         self.id2word = id2word #Dictionary for mapping id to word
         self.word2id = word2id #Dictionary for mapping word to id
+        
+        
+        #Parameters for Char embeddings
+        _, _, self.char_vocab = create_char_dicts() #Char vocab 
+        self.char_embedding_size = 8 #Size of char embedding
+        self.word_len = 16 #maximum word length
+        self.char_out_size = 100 #output size after cnn
+        self.window_width = 5 #kernel size for 1D convolution
+        
         with tf.variable_scope("QAModel", initializer=tf.contrib.layers.variance_scaling_initializer(factor=1.0, uniform=True)):
             self.add_placeholders() #Add the inputs(which dont require gradients)
             self.add_embed_layer(embed_matrix) #Layer to get the embeddings
+            self.add_char_embed_layer()
             self.create_layers() #Add the required layers
             self.add_loss() #Loss layer
 
@@ -73,6 +83,10 @@ class mrcModel(object):
 
         # Add a placeholder to feed in the probability (for dropout)
         self.prob_dropout = tf.placeholder_with_default(1.0, shape=())
+        
+        ## For Char CNN
+        self.char_ids_context = tf.placeholder(tf.int32, shape=[None, self.context_len, self.word_len])
+        self.char_ids_question = tf.placeholder(tf.int32, shape=[None, self.question_len, self.word_len])
 
     def add_embed_layer(self, embed_matrix):
         print("In Add Embed Layer")
@@ -80,10 +94,19 @@ class mrcModel(object):
             embedding_matrix = tf.constant(embed_matrix, dtype=tf.float32, name="embed_matrix") #[400002, 100]
             self.context_embed = embedding_ops.embedding_lookup(embedding_matrix, self.context_ids) #[batch_size, context_len, 100]
             self.question_embed = embedding_ops.embedding_lookup(embedding_matrix, self.question_ids) #[batch_size, question_len, 100]
+            
+            
+    def add_char_embed_layer(self):
+        print("In Char Embed Layer")
+        char_embedding = CharEmbedding(self.char_vocab, self.char_embedding_size, self.word_len, self.char_out_size, self.window_width, self.dropout)
+        context_emb_out = char_embedding.add_layer(self.char_ids_context, scopename = 'char_embed') #[batch, context_len, 100]
+        question_emb_out = char_embedding.add_layer(self.char_ids_question, scopename = 'char_embed') #[batch, ques_len. 100]
+        self.context_embed = tf.concat((self.context_embed, context_emb_out), axis = 2) #[batch, context_len, 200]
+        self.question_embed = tf.concat((self.question_embed, question_emb_out), axis=2) #[batch, ques_len, 200]
     
     def create_layers(self):
         ### Add highway layer
-        embed_size = self.context_embed.get_shape().as_list()[-1] #[100]
+        embed_size = self.context_embed.get_shape().as_list()[-1] #[100] / [200 if char encoding]
         high_way = Highway(embed_size, -1.0)
         for i in range(2):
             self.context_embed = high_way.add_layer(self.context_embed, scopename = "HighwayLayer") #[batch_size, context_len, 100]
@@ -196,6 +219,9 @@ class mrcModel(object):
         input_feed[self.context_mask] = batch.context_mask
         input_feed[self.question_ids] = batch.qn_ids
         input_feed[self.question_mask] = batch.qn_mask
+        #For char embeddings
+        input_feed[self.char_ids_context] = self.padded_char_ids(batch, batch.context_ids)
+        input_feed[self.char_ids_qn] = self.padded_char_ids(batch, batch.qn_ids)
         if mode == "train":
             input_feed[self.answer_span] = batch.ans_span
             input_feed[self.prob_dropout] = self.dropout # apply dropout
