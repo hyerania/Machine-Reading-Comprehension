@@ -28,7 +28,7 @@ class mrcModel(object):
         #Learning parameters
         self.max_gradient_norm = 5.0 #Param for gradient Clipping
         self.learning_rate = 0.001 #Learning rate
-        self.dropout = 0.75 #Drop out for RNN encoder layer
+        self.dropout = 0.65 #Drop out for RNN encoder layer
         
         #Saving model parameters
         self.train_dir = './train' #Directiory to save the model
@@ -51,7 +51,7 @@ class mrcModel(object):
         with tf.variable_scope("QAModel", initializer=tf.contrib.layers.variance_scaling_initializer(factor=1.0, uniform=True)):
             self.add_placeholders() #Add the inputs(which dont require gradients)
             self.add_embed_layer(embed_matrix) #Layer to get the embeddings
-            self.add_char_embed_layer()
+            # self.add_char_embed_layer()
             self.create_layers() #Add the required layers
             self.add_loss() #Loss layer
 
