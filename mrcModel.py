@@ -246,8 +246,8 @@ class mrcModel(object):
         input_feed[self.question_ids] = batch.qn_ids
         input_feed[self.question_mask] = batch.qn_mask
         if CharCNN:
-            input_feed[self.char_ids_context] = self.padded_char_ids(batch, batch.context_ids)
-            input_feed[self.char_ids_qn] = self.padded_char_ids(batch, batch.qn_ids)
+            input_feed[self.char_ids_context] = padded_char_ids(batch, batch.context_ids, self.id2word, self.word_len)
+            input_feed[self.char_ids_question] = padded_char_ids(batch, batch.qn_ids,  self.id2word, self.word_len)
         if mode == "train":
             input_feed[self.answer_span] = batch.ans_span
             input_feed[self.prob_dropout] = self.dropout # apply dropout

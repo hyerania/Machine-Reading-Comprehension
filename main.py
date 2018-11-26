@@ -58,7 +58,7 @@ if __name__ == "__main__":
 
 	# Configuration
 	config = tf.ConfigProto()
-	#config.gpu_options.allow_growth = True
+	config.gpu_options.allow_growth = True
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--mode")
 	parser.add_argument("--spanMode")

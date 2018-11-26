@@ -39,14 +39,14 @@ def matrix_multiplication(mat, weight):
         return tf.reshape(mul, [-1, mat_shape[1], weight_shape[-1]])  # reshape to batch_size, seq_len, p
     
 
-def create_char_dicts(CHAR_PAD_ID=0, CHAR_UNK_ID = 1, _CHAR_PAD = '*', _CHAR_UNK = '$' ):
+def create_char_dicts(CHAR_PAD_ID=0, CHAR_UNK_ID = 1, _CHAR_PAD = '*', _CHAR_UNK = '}' ):
 
         unique_chars = ['!', '"', '#', '$', '%', '&', "'", '(', ')', '+', ',', '-', '.', '/', '0', '1', '2', '3',
                         '4', '5', '6', '7', '8', '9', ':', ';', '<', '=', '>', '?', '[', ']', '^', 'a', 'b', 'c', 'd',
                         'e' , 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
                         '~', ]  # based on analysis in jupyter notebook
 
-        num_chars = len(unique_chars)
+        
 
         idx2char = dict(enumerate(unique_chars, 2))  ##reserve first 2 spots
         idx2char[CHAR_PAD_ID] = _CHAR_PAD
@@ -54,14 +54,14 @@ def create_char_dicts(CHAR_PAD_ID=0, CHAR_UNK_ID = 1, _CHAR_PAD = '*', _CHAR_UNK
 
         ##Create reverse char2idx
         char2idx = {v: k for k, v in idx2char.items()}
-        return char2idx, idx2char, num_chars
+        return char2idx, idx2char, len(idx2char)
 
-def word_to_token_ids(self, word):
+def word_to_token_ids(word):
         """Turns a word into char idxs
             e.g. "know" -> [9, 32, 16, 96]
             Note any token that isn't in the char2idx mapping gets mapped to the id for UNK_CHAR
         """
-        char2idx, idx2char, _ = self.create_char_dicts()
+        char2idx, idx2char, _ =  create_char_dicts()
         char_tokens = list(word)  # list of chars in word
         char_ids = [char2idx.get(w, 1) for w in char_tokens]
         return char_tokens, char_ids
