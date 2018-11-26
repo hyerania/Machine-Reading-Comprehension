@@ -84,6 +84,7 @@ if __name__ == "__main__":
 	print('CharCNN: ', CharCNN)
 	print('Highway: ', Highway)
 	print('Bidaf: ', Bidaf)
+	
 	# Initialize model
 	mrcModel = mrcModel(id2word, word2id, embed_matrix, CharCNN = CharCNN, Highway = Highway, Bidaf = Bidaf)
 

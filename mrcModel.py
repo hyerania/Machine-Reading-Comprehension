@@ -380,7 +380,7 @@ class mrcModel(object):
                 break
 
         f1_total = f1_total/example_num
-        logging.info("F1 %s: %i examples got a score of %.5f]" % (data_name, example_num, f1_total))
+        logging.info("F1 %s: %i examples got a score of %.5f" % (data_name, example_num, f1_total))
         return f1_total
     
     def calc_em(self, session, context_path, question_path, answer_path, data_name, num_samples, spanMode, CharCNN):
@@ -423,7 +423,7 @@ class mrcModel(object):
                 break
 
         em_total = em_total/example_num
-        logging.info("Exact Match %s: %i examples got a score: %.5f]" % (data_name, example_num, em_total))
+        logging.info("Exact Match %s: %i examples got a score: %.5f" % (data_name, example_num, em_total))
         return em_total
 
     def get_index(self, session, batch, mode, spanMode, CharCNN):
