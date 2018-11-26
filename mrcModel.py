@@ -299,7 +299,7 @@ class mrcModel(object):
             for batch in get_batch_generator(self.word2id, train_context_path, train_qn_path, train_ans_path, self.batch_size, context_len=self.context_len, question_len=self.question_len, discard_examples = True):
 
                 # Run training iteration
-                loss, global_step, param_norm, grad_norm = self.run_iter(session, batch, mode = 'train', CharCNN)
+                loss, global_step, param_norm, grad_norm = self.run_iter(session, batch, mode = 'train', CharCNN = CharCNN)
 
                 # Update exponentially-smoothed loss
                 if not exp_loss: # first iter
@@ -321,7 +321,7 @@ class mrcModel(object):
                 if global_step % self.eval_every == 0:
 
                     # Get loss for entire dev set
-                    dev_loss = self.get_dev_loss(session, dev_context_path, dev_qn_path, dev_ans_path, CharCNN)
+                    dev_loss = self.get_dev_loss(session, dev_context_path, dev_qn_path, dev_ans_path, CharCNN = CharCNN)
                     logging.info("Epoch %d, Iter %d, dev loss: %f" % (epoch, global_step, dev_loss))
 
                     # Get F1/EM on train set
@@ -355,7 +355,7 @@ class mrcModel(object):
         f1_total = 0
         example_num = 0
         for batch in get_batch_generator(self.word2id, context_path, question_path, answer_path, self.batch_size, context_len=self.context_len, question_len = self.question_len, discard_examples = False):
-            start_index_pred, end_index_pred = self.get_index(session, batch, "f1Score", spanMode, CharCNN)
+            start_index_pred, end_index_pred = self.get_index(session, batch, "f1Score", spanMode = spanMode, CharCNN = CharCNN)
             start_index_pred = start_index_pred.tolist()
             end_index_pred = end_index_pred.tolist()
 
@@ -398,7 +398,7 @@ class mrcModel(object):
         em_total = 0
         example_num = 0
         for batch in get_batch_generator(self.word2id, context_path, question_path, answer_path, self.batch_size, context_len = self.context_len, question_len = self.question_len, discard_examples = False):
-            start_index_pred, end_index_pred = self.get_index(session, batch, "emScore", spanMode, CharCNN)
+            start_index_pred, end_index_pred = self.get_index(session, batch, "emScore", spanMode = spanMode, CharCNN = CharCNN)
             start_index_pred = start_index_pred.tolist()
             end_index_pred = end_index_pred.tolist()
 
@@ -436,7 +436,7 @@ class mrcModel(object):
             span: True boolean uses smart span selection of positions, otherwise use basic selection
         Returns the most likely start and end indexes for the answer for each example
         '''
-        start_probs, end_probs = self.run_iter(session, batch, mode, CharCNN)
+        start_probs, end_probs = self.run_iter(session, batch, mode, CharCNN = CharCNN)
 
         if(spanMode == True):
             print("SPAN MODE Calculating")

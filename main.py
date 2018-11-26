@@ -58,12 +58,13 @@ if __name__ == "__main__":
 
 	# Configuration
 	config = tf.ConfigProto()
-	config.gpu_options.allow_growth = True
+	#config.gpu_options.allow_growth = True
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--mode")
 	parser.add_argument("--spanMode")
 	parser.add_argument("--CharCNN")
 	parser.add_argument("--Highway")
+	parser.add_argument("--Bidaf")
 	args = parser.parse_args()
     
 	spanMode = False
@@ -79,12 +80,12 @@ if __name__ == "__main__":
 	if args.Bidaf == 'True':
 		Bidaf = True
 	print('Mode Running:')
-	print('\n SpanMode: ', spanMode)
-	print('\n CharCNN: ', CharCNN)
-	print('\n Highway: ', Highway)
-	print('\n Bidaf: ', Bidaf)
+	print('SpanMode: ', spanMode)
+	print('CharCNN: ', CharCNN)
+	print('Highway: ', Highway)
+	print('Bidaf: ', Bidaf)
 	# Initialize model
-	mrcModel = mrcModel(id2word, word2id, embed_matrix, CharCNN, Highway, Bidaf)
+	mrcModel = mrcModel(id2word, word2id, embed_matrix, CharCNN = CharCNN, Highway = Highway, Bidaf = Bidaf)
 
 	# Train Mode
 	if args.mode == 'train':

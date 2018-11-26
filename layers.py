@@ -247,9 +247,9 @@ class CharEmbedding():
             
             #Char Embedding for seq
             flat_seq_char_ids = tf.reshape(char_ids_seq, shape=(-1, self.word_len)) #[batch*seq_len, word_len]
-            print(flat_seq_char_ids.shape)
+            #print(flat_seq_char_ids.shape)
             seq_char_embs = embedding_ops.embedding_lookup(char_emb_matrix, flat_seq_char_ids) # [batch*seq_len, word_max_len, char_embedding_size]
-            print(seq_char_embs.shape)
+            #print(seq_char_embs.shape)
             seq_char_embs = tf.reshape(seq_char_embs, shape=(
            -1, self.word_len, self.char_embedding_size)) # [batch_size*context_len, word_max_len, char_embedding_size]
             
