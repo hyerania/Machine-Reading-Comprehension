@@ -444,7 +444,7 @@ class mrcModel(object):
             start_index = np.empty(shape=(batch_size), dtype=int)
             end_index = np.empty(shape=(batch_size), dtype=int)
             max_prob = np.empty(shape=(batch_size), dtype=float)
-            #Based on context length analysis, 95th percentile are approx. 245 words)
+            #Based on context length analysis, 95th percentile are approx. 245 words, with a span of 15 words)
             for i in range(batch_size):
                 test_start = 0
                 test_end = 0
