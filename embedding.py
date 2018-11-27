@@ -1,6 +1,3 @@
-"""This file contains a function to read the GloVe vectors from file,
-and return them as an embedding matrix"""
-
 from tqdm import tqdm
 import numpy as np
 
@@ -54,10 +51,5 @@ def get_glove(glove_path, glove_dim):
             id2word[idx] = word
             idx += 1
 
-    final_vocab_size = vocab_size + len(_START_VOCAB)
-    assert len(word2id) == final_vocab_size
-    assert len(id2word) == final_vocab_size
-    assert idx == final_vocab_size
-    print("Finished processing GloVe vectors")
     
     return id2word, word2id, emb_matrix
