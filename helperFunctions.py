@@ -8,7 +8,7 @@ def masked_softmax(logits, mask, dim):
             prob_dist : softmax distribution with 0 at places of padding
         """
     
-        exp_mask = (1 - tf.cast(mask, 'float')) * (-1e40) # -large where there's padding, 0 elsewhere
+        exp_mask = (1 - tf.cast(mask, 'float')) * (-1e30) # -large where there's padding, 0 elsewhere
         masked_logits = tf.add(logits, exp_mask) # where there's padding, set logits to -large
         prob_dist = tf.nn.softmax(masked_logits, dim)
         return masked_logits, prob_dist
