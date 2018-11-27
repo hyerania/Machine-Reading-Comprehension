@@ -104,7 +104,6 @@ venv.bak/
 .mypy_cache/
 
 ### Ignored dataset files
-resources/
 .question
 .answer
 .context

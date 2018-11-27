@@ -34,8 +34,7 @@ class Batch(object):
 
 
 def sentence_to_token_ids(sentence, word2id):
-    """Turns a sentence string into word indices
-    e.g. "i do n't know" -> [9, 32, 16, 96]
+    """Turns a sentence string into word indexes
     Note any token that isn't in the word2id mapping gets mapped to the id for UNK
     Input: 
         sentence: string
@@ -78,7 +77,6 @@ def add_batches(batches, word2id, context_file, qn_file, ans_file, batch_size, c
       batch_size: int. how big to make the batches
       context_len, question_len: max length of context and question respectively
     """
-    print("Adding batches start...")
     examples = [] # list of (context_ids, context_tokens, qn_ids, qn_tokens, ans_span, ans_tokens)
     context, ques, ans = context_file.readline(), qn_file.readline(), ans_file.readline() # read the next line from each
     #Each line has a training sample (Context[i], Question[i], Answerspan[i])

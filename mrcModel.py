@@ -115,7 +115,6 @@ class mrcModel(object):
         print("Embed Layer Defined")   
             
     def add_char_embed_layer(self):
-        
         char_embedding = CharEmbedding(self.char_vocab, self.char_embedding_size, self.word_len, self.char_out_size, self.window_width, self.dropout)
         context_emb_out = char_embedding.add_layer(self.char_ids_context, scopename = 'char_embed') #[batch, context_len, 100]
         question_emb_out = char_embedding.add_layer(self.char_ids_question, scopename = 'char_embed') #[batch, ques_len. 100]
@@ -133,7 +132,6 @@ class mrcModel(object):
                 self.context_embed = high_way.add_layer(self.context_embed, scopename = "HighwayLayer") #[batch_size, context_len, 100]
                 self.question_embed = high_way.add_layer(self.question_embed, scopename = "HighwayLayer") #[batch_size, ques_len, 100]
             print("Highway Layer Defined")
-                # Note that both context and embed share the same highway so we send the same scope names
                
         ### Add RNN Encoder Layer
         rnn_encoder = RNNEncoder(self.hidden_encoder_size, self.prob_dropout) 
@@ -152,8 +150,8 @@ class mrcModel(object):
         else:
              # Perform baseline dot product attention
              last_dim = context_hidden_layer.get_shape().as_list()[-1]
-             attn_layer = BasicAttentionLayer(self.prob_dropout, last_dim, last_dim)
-             _, attn_output = attn_layer.add_layer(question_hidden_layer, self.question_mask, context_hidden_layer)  #[batch_size, context_len, hidden_size*2]
+             attention_layer = BasicAttentionLayer(self.prob_dropout, last_dim, last_dim)
+             _, attn_output = attention_layer.add_layer(question_hidden_layer, self.question_mask, context_hidden_layer)  #[batch_size, context_len, hidden_size*2]
              output_hidden_attention = tf.concat([context_hidden_layer, attn_output], axis=2)  # [batch_size, context_len, hidden_size*4]
              print("Basic Attention Layer Defined")
 
@@ -328,7 +326,8 @@ class mrcModel(object):
             context_path, qustion_path, answer_path: Path of actual data files
             data_name: For log file, define if using train or dev set
             num_samples: If 0, use the entire dataset, else use only the specificed number as a subset of the data
-
+            spanMode: True boolean uses smart span selection of positions, otherwise use basic selection
+            charCNN: True boolean uses char embedding, False uses GLoVe vectors
         Returns:
         F1 average score
         '''
@@ -371,7 +370,8 @@ class mrcModel(object):
             context_path, qustion_path, answer_path: Path of actual data files
             data_name: For log file, define if using train or dev set
             num_samples: If 0, use the entire dataset, else use only the specificed number as a subset of the data
-
+            spanMode: True boolean uses smart span selection of positions, otherwise use basic selection
+            charCNN: True boolean uses char embedding, False uses GLoVe vectors
         Returns:
         EM average score
         '''
@@ -413,13 +413,13 @@ class mrcModel(object):
             session: current Tensorflow session
             batch: Batch object
             mode: Describing f1Score or emScore for the run_iter function
-            span: True boolean uses smart span selection of positions, otherwise use basic selection
+            spanMode: True boolean uses smart span selection of positions, otherwise use basic selection
+            charCNN: True boolean uses char embedding, False uses GLoVe vectors
         Returns the most likely start and end indexes for the answer for each example
         '''
         start_probs, end_probs = self.run_iter(session, batch, mode, CharCNN = CharCNN)
 
         if(spanMode == True):
-            print("SPAN MODE Calculating")
             batch_size = batch.batch_size
             start_index = np.empty(shape=(batch_size), dtype=int)
             end_index = np.empty(shape=(batch_size), dtype=int)

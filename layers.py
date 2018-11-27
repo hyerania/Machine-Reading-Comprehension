@@ -53,8 +53,7 @@ class RNNEncoder():
 
 class BidafAttention():
     """
-    Module for Bidaf Attention
-    https://arxiv.org/pdf/1611.01603.pdf
+    Module for Bidaf Attention based on the BiDAF paper
     """
     def __init__(self, size, dropout_param):
         """
