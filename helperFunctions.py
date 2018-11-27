@@ -2,56 +2,46 @@ import tensorflow as tf
 
 def masked_softmax(logits, mask, dim):
         """
-        Takes masked softmax over the given input
-        Inputs:
-          logits: Numpy array
-          mask: Numpy array of same shape as logits
-            Has 1s where there's real data in logits, 0 where there's padding
-          dim: int. dimension over which to take softmax
+        Performs softmax over a dim for logits with mask
         Returns:
-          masked_logits: Numpy array same shape as logits
-            This is the same as logits, but with 1e30 subtracted
-            (i.e. very large negative number) in the padding locations.
-          prob_dist: Numpy array same shape as logits.
-            The result of taking softmax over masked_logits in given dimension.
-            Should be 0 in padding locations.
-            Should sum to 1 over given dimension.
+            masked_logits : returns logits with -large value where there is a padding
+            prob_dist : softmax distribution with 0 at places of padding
         """
-        exp_mask = (1 - tf.cast(mask, 'float')) * (-1e30) # -large where there's padding, 0 elsewhere
+    
+        exp_mask = (1 - tf.cast(mask, 'float')) * (-1e40) # -large where there's padding, 0 elsewhere
         masked_logits = tf.add(logits, exp_mask) # where there's padding, set logits to -large
         prob_dist = tf.nn.softmax(masked_logits, dim)
         return masked_logits, prob_dist
     
-def matrix_multiplication(mat, weight):
+def matrix_multiplication(mat1, mat2):
         """
-        Multiplies 3D matrix, mat to 2D matrix, weight
+        Multiplies 3D matrix, mat1 to 2D matrix, mat2
         Input:
-            mat: 3D matrix -> (i, j, k)
-            weight: 2D matrix -> (k, l)
+            mat1: 3D matrix -> (i, j, k)
+            mat2: 2D matrix -> (k, l)
         Output:
             Output: 3D matrix -> (i,j,l)
         """
-        mat_shape = mat.get_shape().as_list()  # shape - ijk
-        weight_shape = weight.get_shape().as_list()  # shape -kl
-        assert (mat_shape[-1] == weight_shape[0])
-        mat_reshape = tf.reshape(mat, [-1, mat_shape[-1]])  # [batch_size * n, m]
-        mul = tf.matmul(mat_reshape, weight)  # [batch_size * n, p]
-        return tf.reshape(mul, [-1, mat_shape[1], weight_shape[-1]])  # reshape to batch_size, seq_len, p
+        mat1_shape = mat1.get_shape().as_list()  #[i, j, k]
+        mat2_shape = mat2.get_shape().as_list()  #[k, l]
+        mat1_reshape = tf.reshape(mat1, [-1, mat1_shape[-1]])  #[batch_size * n, m]
+        mul = tf.matmul(mat1_reshape, mat2)  # [batch_size * n, p]
+        return tf.reshape(mul, [-1, mat1_shape[1], mat2_shape[-1]])  # reshape to batch_size, seq_len, p
     
 
 def create_char_dicts(CHAR_PAD_ID=0, CHAR_UNK_ID = 1, _CHAR_PAD = '*', _CHAR_UNK = '}' ):
+        """
+        Creates the char to id dictionaries for char embedding
+        """
 
         unique_chars = ['!', '"', '#', '$', '%', '&', "'", '(', ')', '+', ',', '-', '.', '/', '0', '1', '2', '3',
                         '4', '5', '6', '7', '8', '9', ':', ';', '<', '=', '>', '?', '[', ']', '^', 'a', 'b', 'c', 'd',
                         'e' , 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
                         '~', ]  # based on analysis in jupyter notebook
 
-        
-
         idx2char = dict(enumerate(unique_chars, 2))  ##reserve first 2 spots
         idx2char[CHAR_PAD_ID] = _CHAR_PAD
         idx2char[CHAR_UNK_ID] = _CHAR_UNK
-
         ##Create reverse char2idx
         char2idx = {v: k for k, v in idx2char.items()}
         return char2idx, idx2char, len(idx2char)
@@ -67,18 +57,24 @@ def word_to_token_ids(word):
         return char_tokens, char_ids
 
 
-def padded_char_ids(batch, token_ids, id2word, word_len):  # have to use token_ids since only those are padded
+def padded_char_ids(batch, token_ids, id2word, word_len): 
+        """
+        Return char ID representation for each batch
+        Input : 
+            token_ids - [batch, seq_len]
+            id2word : id to word dictionary
+            word_len : max word length allowed
+        Output:
+            charids_batch = [batch, seq_len, word_len]
+        
+        """
 
         charids_batch = []
         for i in range(batch.batch_size):
             charids_line = []
-            #for each example
             token_row = token_ids[i,:]
-            # print("Each token row is", token_row)
-            # print("Shape token row is ", token_row.shape)
             for j in range(len(token_row)):
                 id = token_row[j]
-                # print("each id is:" ,id)
                 word = id2word[id] # convert token id to word
                 _, char_ids = word_to_token_ids(word)
                 # for each word we get char_ids but they maybe different_length
@@ -87,10 +83,10 @@ def padded_char_ids(batch, token_ids, id2word, word_len):  # have to use token_i
                         char_ids.append(0)
                     pad_char_ids = char_ids
 
-                else:  # if longer truncate to word max len
+                else:
                     pad_char_ids = char_ids[:word_len]
 
                 charids_line.append(pad_char_ids)
             charids_batch.append(charids_line)
 
-        return charids_batch
+        return charids_batch #[batch, seq_len, word_len]

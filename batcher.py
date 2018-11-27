@@ -28,7 +28,6 @@ class Batch(object):
 
         self.ans_span = ans_span
         self.ans_tokens = ans_tokens
-        #IS IT REQUIRED????????????????????????????????????????????
         self.uuids = uuids
 
         self.batch_size = len(self.context_tokens)
@@ -44,13 +43,6 @@ def sentence_to_token_ids(sentence, word2id):
     Output:
         tokens: list of words in the sentence
         ids : list of ids of each word in the sentence
-    """
-    ####WHYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY??????????????
-    """
-    words = []
-    for space_separated_fragment in sentence.strip().split():
-        words.extend(re.split(" ", space_separated_fragment))
-    return [w for w in words if w]
     """
     tokens = sentence.strip().split()
     ids = [word2id.get(w, UNK_ID) for w in tokens]

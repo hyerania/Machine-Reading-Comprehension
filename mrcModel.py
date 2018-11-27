@@ -1,13 +1,10 @@
 # coding: utf-8
-import json
 import os
 import numpy as np
-import time
 import tensorflow as tf
 from tensorflow.python.ops import embedding_ops
-from tensorflow.python.ops import variable_scope as vs
 from layers import Highway, RNNEncoder, BidafAttention, SimpleSoftmaxLayer, BasicAttentionLayer, CharEmbedding
-from helperFunctions import masked_softmax, create_char_dicts, word_to_token_ids, padded_char_ids
+from helperFunctions import create_char_dicts, padded_char_ids
 import logging
 from batcher import get_batch_generator
 from official_evaluation import f1_score, exact_match_score
@@ -156,9 +153,8 @@ class mrcModel(object):
              # Perform baseline dot product attention
              last_dim = context_hidden_layer.get_shape().as_list()[-1]
              attn_layer = BasicAttentionLayer(self.prob_dropout, last_dim, last_dim)
-             _, attn_output = attn_layer.build_graph(question_hidden_layer, self.question_mask, context_hidden_layer)  # attn_output is shape (batch_size, context_len, hidden_size*2)
-             # Concat attn_output to context_hiddens to get blended_reps
-             output_hidden_attention = tf.concat([context_hidden_layer, attn_output], axis=2)  # (batch_size, context_len, hidden_size*4)
+             _, attn_output = attn_layer.add_layer(question_hidden_layer, self.question_mask, context_hidden_layer)  #[batch_size, context_len, hidden_size*2]
+             output_hidden_attention = tf.concat([context_hidden_layer, attn_output], axis=2)  # [batch_size, context_len, hidden_size*4]
              print("Basic Attention Layer Defined")
 
 
@@ -166,18 +162,15 @@ class mrcModel(object):
         final_combination_cq = tf.contrib.layers.fully_connected(output_hidden_attention, num_outputs=self.hidden_full_size) #[batch, context_len, 200]
         
         # Compute start distribution
-        # with vs.variable_scope("Start")
         start_layer = SimpleSoftmaxLayer()
         self.start_val, self.start_probs = start_layer.add_layer(final_combination_cq, self.context_mask, scopename="StartSoftmax")
 
         # Compute end distribution
-        # with vs.variable_scope("End")
         end_layer = SimpleSoftmaxLayer()
         self.end_val, self.end_probs = end_layer.add_layer(final_combination_cq, self.context_mask, scopename="EndSoftmax")
         print("Output Layer Defined")
         
     def add_loss(self):
-#         with vs.variable_scope("loss"):
         print("Loss Defined")
         with tf.variable_scope("loss"):
             # Loss for start prediction
@@ -203,11 +196,6 @@ class mrcModel(object):
         logging.info("Calculating dev loss...")
         loss_per_batch, batch_lengths = [], []
 
-        # Iterate over dev set batches
-        # Note: here we set discard_long=True, meaning we discard any examples
-        # which are longer than our context_len or question_len.
-        # We need to do this because if, for example, the true answer is cut
-        # off the context, then the loss function is undefined.
         for batch in get_batch_generator(self.word2id, dev_context_path, dev_qn_path, dev_ans_path, self.batch_size, context_len=self.context_len, question_len=self.question_len, discard_examples=True):
 
             # Get loss for this batch
@@ -278,15 +266,7 @@ class mrcModel(object):
           session: TensorFlow session
           {train/dev}_{qn/context/ans}_path: paths to {train/dev}.{context/question/answer} data files
         """
-
-        # Print number of model parameters
-        """
-        tic = time.time()
-        params = tf.trainable_variables()
-        num_params = sum(map(lambda t: np.prod(tf.shape(t.value()).eval()), params))
-        toc = time.time()
-        logging.info("Number of params: %d (retrieval took %f secs)" % (num_params, toc - tic))
-        """
+        
         # We will keep track of exponentially-smoothed loss
         exp_loss = None
         checkpoint_path = os.path.join(self.train_dir, "qa.ckpt")
